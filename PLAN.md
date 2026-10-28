@@ -189,7 +189,7 @@ Dashboard numbers per department & month:
 - [x] Managers add/edit employees → **No**; admin, owner and GM can (decided 2026-10-28)
 - [x] Employees see changes → **only after the manager publishes** (decided 2026-10-28, built)
 
-- [ ] May a manager approve their **own** Forma 76 day? (current: yes, it is audited; alternative: only the GM approves managers' days)
+- [x] Managers approve their **own** Forma 76 day → **Yes** (decided 2026-10-28; every approval is in the audit log)
 
 ## 7. Running locally
 
@@ -206,7 +206,7 @@ Demo logins (after seed): `admin`, `owner`, `topmanager` (GM, works in Managemen
 Tests: `npm test` (calculations + translations) and `npm run db:check` (no-delete rules + audit chain).
 
 Local database notes:
-- `npm run dev` applies new migrations automatically on start (local database only).
+- `npm run dev` applies new migrations automatically – at start and again on the next page load if a migration was added while it runs (local database only).
 - `npm run db:reset` wipes and rebuilds the local demo database. Stop `npm run dev` first – the `db:*` scripts refuse to run while the app has the local database open.
 
 ## 8. Change log
@@ -215,3 +215,4 @@ Local database notes:
 - 2026-10-28 — Phases 2–5 built and verified (schedule grid, Forma 76 + corrections + export, budget dashboard, employee pay view + advances, PWA). DB driver → `pg`.
 - 2026-10-28 — Fixed "Failed query … break_minutes": a running dev server kept an old in-memory copy of the local database while it was rebuilt. Now: auto-migrate on start + lock file so scripts can't touch the database the app has open. Added BG/EN/RU and schedule publishing; open questions 2.1–2.4 answered. Next: visual review, Phase 6.
 - 2026-10-28 — Phase 7: people/permissions rework, Team page, phone-first schedule editor (Day/Person/Table, picker, undo, repeat week), bottom navigation, dark mode, Forma 76 phone layout. Phase 8 (AI via OpenRouter) planned.
+- 2026-10-28 — Fixed "Failed query … phone" again: a dev server started before a migration kept the old schema. Local migrations are now also checked on each request (cheap, once per new migration), so no restart is needed.

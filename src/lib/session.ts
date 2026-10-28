@@ -7,6 +7,7 @@ import { auth } from "@/lib/auth";
 import { db } from "@/db/client";
 import { departmentManagers, departments, employees } from "@/db/schema";
 import { AppError } from "@/lib/app-error";
+import { ensureLocalSchema } from "@/db/local-migrate";
 
 export const ROLES = ["employee", "manager", "top_manager", "owner", "accountant", "admin"] as const;
 export type Role = (typeof ROLES)[number];
@@ -19,6 +20,8 @@ export type CurrentUser = {
 };
 
 export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
+  // Every page and action passes through here, so new local migrations are applied before any query.
+  await ensureLocalSchema();
   const s = await auth.api.getSession({ headers: await headers() });
   if (!s) return null;
   const u = s.user as typeof s.user & { role?: string; active?: boolean; username?: string | null };
