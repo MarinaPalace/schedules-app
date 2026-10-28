@@ -8,12 +8,15 @@ import { canManageDepartment, getVisibleDepartments, requireUser } from "@/lib/s
 import { TimesheetDay, type TimesheetRow } from "@/components/timesheet-day";
 import { LinkTabs, PeriodNav, href } from "@/components/toolbar";
 import { dayLabel } from "@/lib/calendar";
+import { getDayLabels } from "@/lib/day-labels";
+import { getLocale, getTranslations } from "next-intl/server";
 
 export default async function TimesheetPage({ searchParams }: PageProps<"/timesheet">) {
   const user = await requireUser(["manager", "top_manager", "owner", "accountant", "admin"]);
   const sp = (await searchParams) as { dept?: string; date?: string };
+  const [t, locale, labels] = await Promise.all([getTranslations(), getLocale(), getDayLabels()]);
   const deps = await getVisibleDepartments(user);
-  if (!deps.length) return <p className="text-sm text-gray-500">No departments assigned to you.</p>;
+  if (!deps.length) return <p className="text-sm text-gray-500">{t("common.noDepartments")}</p>;
   const dept = deps.find((d) => d.id === sp.dept) ?? deps[0];
   const today = todayISO();
   const date = isISODate(sp.date) ? sp.date : today;
@@ -36,10 +39,10 @@ export default async function TimesheetPage({ searchParams }: PageProps<"/timesh
       employeeId: e.id,
       name: `${e.lastName} ${e.firstName}`,
       position: e.position,
-      planned: describeDay(plan),
+      planned: describeDay(plan, labels),
       plannedInput: inputFromEntry(plan?.kind === "none" ? null : plan),
-      approved: ts ? { version: ts.version, text: describeDay(ts), input: inputFromEntry(ts) } : null,
-      pending: pc ? { text: describeDay(pc), reason: pc.reason } : null,
+      approved: ts ? { version: ts.version, text: describeDay(ts, labels), input: inputFromEntry(ts) } : null,
+      pending: pc ? { text: describeDay(pc, labels), reason: pc.reason } : null,
     };
   });
   // Scheduled people first, then the rest.
@@ -51,20 +54,20 @@ export default async function TimesheetPage({ searchParams }: PageProps<"/timesh
   return (
     <div className="max-w-6xl space-y-4">
       <div className="flex flex-wrap items-center gap-3">
-        <h1 className="page-title mr-2">Forma 76</h1>
+        <h1 className="page-title mr-2">{t("timesheet.title")}</h1>
         <LinkTabs base="/timesheet" params={{ date }} name="dept" value={dept.id} options={deps.map((d) => ({ value: d.id, label: d.name }))} />
         <PeriodNav
-          label={`${dayLabel(date).split(" ")[0]} ${formatDate(date)}`}
+          label={`${dayLabel(date, locale).split(" ")[0]} ${formatDate(date)}`}
           prev={href("/timesheet", { ...params, date: addDays(date, -1) })}
           next={href("/timesheet", { ...params, date: addDays(date, 1) })}
           today={href("/timesheet", { dept: dept.id })}
         />
         <Link href={href("/timesheet/month", { dept: dept.id, month: monthOf(date) })} className="btn btn-sm">
-          Month view &amp; export
+          {t("timesheet.monthAndExport")}
         </Link>
       </div>
       <p className="text-sm text-gray-500">
-        {approvedCount} of {rows.length} approved. Hours are pre-filled from the schedule – adjust what really happened, then approve.
+        {t("timesheet.progress", { approved: approvedCount, total: rows.length })}
       </p>
       <TimesheetDay
         key={`${dept.id}-${date}-${approvedCount}-${pending.size}-${timesheet.size}`}

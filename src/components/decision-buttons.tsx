@@ -2,12 +2,14 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 
 type Decide = (raw: { requestId: string; decision: "approved" | "rejected"; note?: string }) => Promise<{ error?: string; ok?: string }>;
 
 /** Approve / reject with an optional note. */
 export function DecisionButtons({ requestId, decide }: { requestId: string; decide: Decide }) {
   const router = useRouter();
+  const t = useTranslations("common");
   const [note, setNote] = useState("");
   const [msg, setMsg] = useState<{ error?: string; ok?: string }>({});
   const [pending, start] = useTransition();
@@ -21,13 +23,13 @@ export function DecisionButtons({ requestId, decide }: { requestId: string; deci
 
   return (
     <div className="space-y-2">
-      <input className="input py-1 text-sm" placeholder="Note (optional)" value={note} onChange={(e) => setNote(e.target.value)} />
+      <input className="input py-1 text-sm" placeholder={t("noteOptional")} value={note} onChange={(e) => setNote(e.target.value)} />
       <div className="flex gap-2">
         <button type="button" className="btn btn-primary btn-sm" disabled={pending} onClick={() => send("approved")}>
-          Approve
+          {t("approve")}
         </button>
         <button type="button" className="btn btn-danger btn-sm" disabled={pending} onClick={() => send("rejected")}>
-          Reject
+          {t("reject")}
         </button>
       </div>
       {msg.error && <p className="text-xs text-red-600">{msg.error}</p>}

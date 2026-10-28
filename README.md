@@ -20,7 +20,10 @@ npm run dev
 | `npm run db:generate` | Create a migration after changing `src/db/schema.ts` |
 | `npm run db:migrate` | Apply migrations |
 | `npm run db:seed` | Demo data (only on an empty database) |
+| `npm run db:reset` | Local only: wipe and rebuild the demo database |
 | `npm run db:check` | Verify no-delete / no-update rules and the audit hash chain |
 | `npm test` | Unit tests for hour and cost calculations |
 
-With PGlite, stop the dev server before running `db:*` scripts (one process at a time).
+Languages: Bulgarian (default), English, Russian – texts live in `messages/*.json`.
+
+With the local database, stop the dev server before running `db:*` scripts (they refuse otherwise). `npm run dev` applies new migrations automatically.

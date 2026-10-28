@@ -51,10 +51,8 @@ export function addMonths(month: string, n: number): string {
   return toISO(d).slice(0, 7);
 }
 
-const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-
-export function weekdayShort(iso: string): string {
-  return WEEKDAYS[(toDate(iso).getUTCDay() + 6) % 7];
+export function weekdayShort(iso: string, locale = "en"): string {
+  return new Intl.DateTimeFormat(locale, { weekday: "short", timeZone: "UTC" }).format(toDate(iso));
 }
 
 export function isWeekend(iso: string): boolean {
@@ -62,10 +60,11 @@ export function isWeekend(iso: string): boolean {
   return d === 0 || d === 6;
 }
 
-export function dayLabel(iso: string): string {
-  return `${weekdayShort(iso)} ${iso.slice(8, 10)}.${iso.slice(5, 7)}`;
+export function dayLabel(iso: string, locale = "en"): string {
+  return `${weekdayShort(iso, locale)} ${iso.slice(8, 10)}.${iso.slice(5, 7)}`;
 }
 
-export function monthLabel(month: string): string {
-  return new Intl.DateTimeFormat("en-GB", { month: "long", year: "numeric", timeZone: "UTC" }).format(toDate(`${month}-01`));
+export function monthLabel(month: string, locale = "en"): string {
+  const s = new Intl.DateTimeFormat(locale, { month: "long", year: "numeric", timeZone: "UTC" }).format(toDate(`${month}-01`));
+  return s.charAt(0).toUpperCase() + s.slice(1);
 }

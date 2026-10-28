@@ -118,6 +118,22 @@ export const scheduleEntries = pgTable(
   (t) => [index("schedule_entries_lookup_idx").on(t.employeeId, t.workDate, t.createdAt)],
 );
 
+/** Append-only. Employees see a day as it was at the latest publication covering it. */
+export const schedulePublications = pgTable(
+  "schedule_publications",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    departmentId: uuid("department_id")
+      .notNull()
+      .references(() => departments.id),
+    fromDate: date("from_date").notNull(),
+    toDate: date("to_date").notNull(),
+    createdBy: createdBy(),
+    createdAt: createdAt(),
+  },
+  (t) => [index("schedule_publications_dept_idx").on(t.departmentId, t.fromDate, t.toDate)],
+);
+
 /** Forma 76 — approved actual hours. Append-only; highest version per (employee, work_date) is current. */
 export const timesheetEntries = pgTable(
   "timesheet_entries",

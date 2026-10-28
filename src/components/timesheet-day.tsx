@@ -6,6 +6,8 @@ import { approveDay, requestCorrection } from "@/app/(app)/timesheet/actions";
 import { ABSENCE_CODES } from "@/lib/codes";
 import { toDayValue, type DayInput } from "@/lib/day-input";
 import { formatHours } from "@/lib/shifts";
+import { useTranslations } from "next-intl";
+import { useDayLabels } from "@/lib/use-day-labels";
 
 export type TimesheetRow = {
   employeeId: string;
@@ -32,18 +34,20 @@ function decodeKind(v: string, prev: DayInput): DayInput {
 }
 
 function DayEditor({ value, onChange, disabled }: { value: DayInput; onChange: (v: DayInput) => void; disabled?: boolean }) {
+  const t = useTranslations();
+  const labels = useDayLabels();
   const parsed = toDayValue(value);
   return (
     <div className="flex flex-wrap items-center gap-2">
       <select className="input w-auto py-1" value={encodeKind(value)} disabled={disabled} onChange={(e) => onChange(decodeKind(e.target.value, value))}>
-        <option value="shift">Worked</option>
-        <option value="off">Day off</option>
-        {ABSENCE_CODES.map((a) => (
-          <option key={a.code} value={`absence:${a.code}`}>
-            {a.code} – {a.label}
+        <option value="shift">{t("timesheet.worked")}</option>
+        <option value="off">{t("common.dayOff")}</option>
+        {ABSENCE_CODES.map((code) => (
+          <option key={code} value={`absence:${code}`}>
+            {code} – {labels.absence[code]}
           </option>
         ))}
-        <option value="none">— nothing</option>
+        <option value="none">{t("timesheet.nothing")}</option>
       </select>
       {value.kind === "shift" && (
         <>
@@ -55,7 +59,7 @@ function DayEditor({ value, onChange, disabled }: { value: DayInput; onChange: (
             onChange={(e) => onChange({ ...value, hours: e.target.value })}
           />
           <label className="flex items-center gap-1 text-xs text-gray-500">
-            break
+            {t("timesheet.break")}
             <input
               type="number"
               min={0}
@@ -64,12 +68,12 @@ function DayEditor({ value, onChange, disabled }: { value: DayInput; onChange: (
               disabled={disabled}
               onChange={(e) => onChange({ ...value, breakMinutes: Number(e.target.value) || 0 })}
             />
-            min
+            {t("timesheet.min")}
           </label>
         </>
       )}
       <span className={`text-xs ${typeof parsed === "string" ? "text-red-600" : "text-gray-600"}`}>
-        {typeof parsed === "string" ? parsed : `${formatHours(parsed.paidMinutes)} h`}
+        {typeof parsed === "string" ? t(`errors.${parsed}`) : `${formatHours(parsed.paidMinutes)} ${labels.hourUnit}`}
       </span>
     </div>
   );
@@ -89,6 +93,7 @@ export function TimesheetDay({
   canApproveDate: boolean;
 }) {
   const router = useRouter();
+  const t = useTranslations();
   const [pending, start] = useTransition();
   const [msg, setMsg] = useState<{ error?: string; ok?: string }>({});
   const open = rows.filter((r) => !r.approved);
@@ -134,10 +139,10 @@ export function TimesheetDay({
           <thead>
             <tr>
               {editable && open.length > 0 && <th className="w-8"></th>}
-              <th>Employee</th>
-              <th>Planned</th>
-              <th>Actual (Forma 76)</th>
-              <th>Status</th>
+              <th>{t("common.employee")}</th>
+              <th>{t("timesheet.planned")}</th>
+              <th>{t("timesheet.actualCol")}</th>
+              <th>{t("common.status")}</th>
             </tr>
           </thead>
           <tbody>
@@ -167,23 +172,23 @@ export function TimesheetDay({
                       editable ? (
                         <DayEditor value={inputs[r.employeeId]} disabled={!canApproveDate} onChange={(v) => setInputs((s) => ({ ...s, [r.employeeId]: v }))} />
                       ) : (
-                        <span className="text-gray-400">not approved</span>
+                        <span className="text-gray-400">{t("timesheet.notApproved")}</span>
                       )
                     ) : ed ? (
                       <div className="space-y-2">
                         <DayEditor value={ed.input} onChange={(v) => setEditing((s) => ({ ...s, [r.employeeId]: { ...ed, input: v } }))} />
                         <input
                           className="input py-1 text-sm"
-                          placeholder="Reason for the change (required)"
+                          placeholder={t("timesheet.reasonPlaceholder")}
                           value={ed.reason}
                           onChange={(e) => setEditing((s) => ({ ...s, [r.employeeId]: { ...ed, reason: e.target.value } }))}
                         />
                         <div className="flex gap-2">
                           <button type="button" className="btn btn-primary btn-sm" disabled={pending} onClick={() => sendCorrection(r.employeeId)}>
-                            Send for approval
+                            {t("timesheet.sendForApproval")}
                           </button>
                           <button type="button" className="btn btn-sm" onClick={() => setEditing((s) => without(s, r.employeeId))}>
-                            Cancel
+                            {t("common.cancel")}
                           </button>
                         </div>
                       </div>
@@ -192,26 +197,26 @@ export function TimesheetDay({
                     )}
                     {r.pending && (
                       <div className="mt-1 text-xs text-amber-700">
-                        Waiting for approval → {r.pending.text} ({r.pending.reason})
+                        {t("timesheet.waitingFor", { text: r.pending.text, reason: r.pending.reason })}
                       </div>
                     )}
                   </td>
                   <td className="whitespace-nowrap">
                     {r.approved ? (
                       <div className="flex flex-col items-start gap-1">
-                        <span className="badge bg-green-100 text-green-800">approved{r.approved.version > 1 ? ` v${r.approved.version}` : ""}</span>
+                        <span className="badge bg-green-100 text-green-800">{r.approved.version > 1 ? t("timesheet.approvedVersion", { version: r.approved.version }) : t("common.approved")}</span>
                         {editable && !r.pending && !ed && (
                           <button
                             type="button"
                             className="text-xs text-blue-700 hover:underline"
                             onClick={() => setEditing((s) => ({ ...s, [r.employeeId]: { input: r.approved!.input, reason: "" } }))}
                           >
-                            Change…
+                            {t("timesheet.change")}
                           </button>
                         )}
                       </div>
                     ) : (
-                      <span className="badge">open</span>
+                      <span className="badge">{t("common.open")}</span>
                     )}
                   </td>
                 </tr>
@@ -219,7 +224,7 @@ export function TimesheetDay({
             })}
             {rows.length === 0 && (
               <tr>
-                <td colSpan={5} className="py-8 text-center text-gray-500">No employees.</td>
+                <td colSpan={5} className="py-8 text-center text-gray-500">{t("timesheet.noEmployees")}</td>
               </tr>
             )}
           </tbody>
@@ -229,10 +234,10 @@ export function TimesheetDay({
       {editable && open.length > 0 && (
         <div className="flex flex-wrap items-center gap-3">
           <button type="button" className="btn btn-primary" disabled={pending || !canApproveDate || chosen.length === 0} onClick={approve}>
-            {pending ? "Saving…" : `Approve ${chosen.length} selected`}
+            {pending ? t("schedule.saving") : t("timesheet.approveSelected", { count: chosen.length })}
           </button>
-          {!canApproveDate && <span className="text-sm text-gray-500">Days in the future cannot be approved.</span>}
-          <span className="text-xs text-gray-500">After approval a day is locked; changes go to the top manager.</span>
+          {!canApproveDate && <span className="text-sm text-gray-500">{t("timesheet.futureNote")}</span>}
+          <span className="text-xs text-gray-500">{t("timesheet.lockNote")}</span>
         </div>
       )}
       {msg.error && <p className="text-sm text-red-600">{msg.error}</p>}

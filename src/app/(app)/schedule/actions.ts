@@ -3,11 +3,13 @@
 import { revalidatePath } from "next/cache";
 import { and, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
-import { employees, scheduleEntries, shiftTemplates } from "@/db/schema";
+import { employees, scheduleEntries, schedulePublications, shiftTemplates } from "@/db/schema";
 import { withActor } from "@/lib/actor";
+import { AppError } from "@/lib/app-error";
 import { addDays, dateRange, isISODate } from "@/lib/calendar";
 import { isAbsenceCode, type DayValue } from "@/lib/codes";
 import { loadSchedule } from "@/lib/data";
+import { errorMessage } from "@/lib/errors";
 import { canManageDepartment, getCurrentUser } from "@/lib/session";
 import { paidMinutes, parseSegments } from "@/lib/shifts";
 
@@ -24,7 +26,7 @@ const cellsSchema = z
   .array(
     z.object({
       employeeId: z.uuid(),
-      date: z.string().refine(isISODate, "Invalid date"),
+      date: z.string().refine(isISODate, "invalid"),
       tool: toolSchema,
     }),
   )
@@ -33,7 +35,7 @@ const cellsSchema = z
 
 async function authorize(departmentId: string) {
   const me = await getCurrentUser();
-  if (!me || !(await canManageDepartment(me, departmentId))) throw new Error("You cannot edit this department's schedule");
+  if (!me || !(await canManageDepartment(me, departmentId))) throw new AppError("cannotEditSchedule");
   return me;
 }
 
@@ -53,19 +55,19 @@ export async function saveCells(departmentId: string, input: unknown): Promise<{
       switch (tool.type) {
         case "template": {
           const t = templates.get(tool.templateId);
-          if (!t || !t.active) throw new Error("Unknown or inactive shift legend");
-          if (t.departmentId && t.departmentId !== departmentId) throw new Error(`Legend ${t.code} belongs to another department`);
+          if (!t || !t.active) throw new AppError("unknownLegend");
+          if (t.departmentId && t.departmentId !== departmentId) throw new AppError("legendOtherDept", { code: t.code });
           value = { kind: "shift", segments: t.segments, paidMinutes: t.paidMinutes, breakMinutes: t.breakMinutes, shiftTemplateId: t.id };
           break;
         }
         case "custom": {
           const segments = parseSegments(tool.text);
-          if (!segments) throw new Error('Custom hours must look like "08:00-12:00 / 17:00-21:00"');
+          if (!segments) throw new AppError("hoursFormat");
           value = { kind: "shift", segments, paidMinutes: paidMinutes(segments) };
           break;
         }
         case "absence":
-          if (!isAbsenceCode(tool.code)) throw new Error("Unknown absence code");
+          if (!isAbsenceCode(tool.code)) throw new AppError("chooseAbsence");
           value = { kind: "absence", segments: [], paidMinutes: 0, absenceCode: tool.code };
           break;
         default:
@@ -88,14 +90,28 @@ export async function saveCells(departmentId: string, input: unknown): Promise<{
     await withActor(me.id, async (tx) => {
       const empIds = [...new Set(rows.map((r) => r.employeeId))];
       const found = await tx.select({ id: employees.id }).from(employees).where(inArray(employees.id, empIds));
-      if (found.length !== empIds.length) throw new Error("Unknown employee");
+      if (found.length !== empIds.length) throw new AppError("unknownEmployee");
       await tx.insert(scheduleEntries).values(rows);
     });
     revalidatePath("/schedule");
     return {};
   } catch (e) {
-    const err = e as { message?: string; issues?: { message: string }[] };
-    return { error: err.issues?.[0]?.message ?? err.message ?? "Could not save" };
+    return { error: await errorMessage(e) };
+  }
+}
+
+/** Makes the current plan of a period visible to employees. */
+export async function publishSchedule(departmentId: string, from: string, to: string): Promise<{ error?: string }> {
+  try {
+    z.uuid().parse(departmentId);
+    if (!isISODate(from) || !isISODate(to) || from > to) throw new AppError("invalidPeriod");
+    const me = await authorize(departmentId);
+    await withActor(me.id, (tx) => tx.insert(schedulePublications).values({ departmentId, fromDate: from, toDate: to, createdBy: me.id }));
+    revalidatePath("/schedule");
+    revalidatePath("/me");
+    return {};
+  } catch (e) {
+    return { error: await errorMessage(e) };
   }
 }
 
@@ -103,7 +119,7 @@ export async function saveCells(departmentId: string, input: unknown): Promise<{
 export async function copyPreviousWeek(departmentId: string, monday: string, employeeIds: string[]): Promise<{ error?: string; copied?: number }> {
   try {
     z.uuid().parse(departmentId);
-    if (!isISODate(monday)) throw new Error("Invalid week");
+    if (!isISODate(monday)) throw new AppError("invalidPeriod");
     z.array(z.uuid()).parse(employeeIds);
     const me = await authorize(departmentId);
     const source = await loadSchedule(employeeIds, addDays(monday, -7), addDays(monday, -1));
@@ -122,7 +138,7 @@ export async function copyPreviousWeek(departmentId: string, monday: string, emp
         note: "copied from previous week",
         createdBy: me.id,
       }));
-    if (!rows.length) return { error: "The previous week has no schedule to copy" };
+    if (!rows.length) throw new AppError("nothingToCopy");
     // Only active employees still in this department.
     await withActor(me.id, async (tx) => {
       const ok = new Set(
@@ -133,12 +149,13 @@ export async function copyPreviousWeek(departmentId: string, monday: string, emp
             .where(and(eq(employees.departmentId, departmentId), eq(employees.active, true), inArray(employees.id, employeeIds)))
         ).map((e) => e.id),
       );
-      const filtered = rows.filter((r) => ok.has(r.employeeId) && dateRange(monday, addDays(monday, 6)).includes(r.workDate));
+      const week = dateRange(monday, addDays(monday, 6));
+      const filtered = rows.filter((r) => ok.has(r.employeeId) && week.includes(r.workDate));
       if (filtered.length) await tx.insert(scheduleEntries).values(filtered);
     });
     revalidatePath("/schedule");
     return { copied: rows.length };
   } catch (e) {
-    return { error: (e as Error).message };
+    return { error: await errorMessage(e) };
   }
 }

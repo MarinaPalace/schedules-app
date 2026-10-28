@@ -8,12 +8,16 @@ import { formatDate, formatDateTime } from "@/lib/dates";
 import { getVisibleDepartments, requireUser } from "@/lib/session";
 import { DecisionButtons } from "@/components/decision-buttons";
 import { decideCorrection } from "../timesheet/actions";
+import { getDayLabels } from "@/lib/day-labels";
+import { getTranslations } from "next-intl/server";
 
 export default async function CorrectionsPage() {
   const me = await requireUser(["manager", "top_manager", "admin", "owner"]);
   const canDecide = me.role === "top_manager" || me.role === "admin";
+  const [t, labels] = await Promise.all([getTranslations(), getDayLabels()]);
+  const describe = (e: Parameters<typeof describeDay>[0]) => describeDay(e, labels);
   const deptIds = (await getVisibleDepartments(me)).map((d) => d.id);
-  if (!deptIds.length) return <p className="text-sm text-gray-500">No departments assigned to you.</p>;
+  if (!deptIds.length) return <p className="text-sm text-gray-500">{t("common.noDepartments")}</p>;
 
   const decider = alias(user, "decider");
   // Builder factory: drizzle query builders are mutable, so build one per query.
@@ -47,15 +51,15 @@ export default async function CorrectionsPage() {
   return (
     <div className="max-w-5xl space-y-6">
       <div>
-        <h1 className="page-title">Corrections of approved days</h1>
+        <h1 className="page-title">{t("corrections.title")}</h1>
         <p className="text-sm text-gray-500">
-          {canDecide ? "Approve or reject changes to days that were already approved." : "Changes you requested; the top manager decides."}
+          {canDecide ? t("corrections.helpDecide") : t("corrections.helpManager")}
         </p>
       </div>
 
       <section className="space-y-3">
-        <h2 className="font-medium">Waiting ({open.length})</h2>
-        {open.length === 0 && <p className="text-sm text-gray-500">Nothing waiting.</p>}
+        <h2 className="font-medium">{t("corrections.waiting", { count: open.length })}</h2>
+        {open.length === 0 && <p className="text-sm text-gray-500">{t("corrections.nothing")}</p>}
         {open.map(({ r, old, emp, dept, by }) => (
           <div key={r.id} className="card grid gap-4 md:grid-cols-[1fr_16rem]">
             <div className="space-y-1 text-sm">
@@ -66,33 +70,33 @@ export default async function CorrectionsPage() {
                 </Link>
               </div>
               <div>
-                <span className="text-gray-500">Approved (v{old.version}): </span>
-                <span className="line-through decoration-gray-400">{describeDay(old)}</span>
+                <span className="text-gray-500">{t("corrections.approvedVersion", { version: old.version })} </span>
+                <span className="line-through decoration-gray-400">{describe(old)}</span>
               </div>
               <div>
-                <span className="text-gray-500">Proposed: </span>
-                <span className="font-medium">{describeDay(r)}</span>
+                <span className="text-gray-500">{t("corrections.proposed")} </span>
+                <span className="font-medium">{describe(r)}</span>
               </div>
-              <div className="text-gray-600">Reason: {r.reason}</div>
+              <div className="text-gray-600">{t("history.reason", { reason: r.reason })}</div>
               <div className="text-xs text-gray-400">
-                Requested by {by}, {formatDateTime(r.createdAt)}
+                {t("corrections.requestedBy", { name: by ?? "", when: formatDateTime(r.createdAt) })}
               </div>
             </div>
-            {canDecide ? <DecisionButtons requestId={r.id} decide={decideCorrection} /> : <span className="badge self-start bg-amber-100 text-amber-800">pending</span>}
+            {canDecide ? <DecisionButtons requestId={r.id} decide={decideCorrection} /> : <span className="badge self-start bg-amber-100 text-amber-800">{t("common.pending")}</span>}
           </div>
         ))}
       </section>
 
       <section className="space-y-2">
-        <h2 className="font-medium">Recently decided</h2>
+        <h2 className="font-medium">{t("corrections.recent")}</h2>
         <div className="card overflow-x-auto p-0 sm:p-0">
           <table className="table">
             <thead>
               <tr>
-                <th>Day</th>
-                <th>Employee</th>
-                <th>Change</th>
-                <th>Decision</th>
+                <th>{t("corrections.day")}</th>
+                <th>{t("common.employee")}</th>
+                <th>{t("corrections.change")}</th>
+                <th>{t("corrections.decision")}</th>
               </tr>
             </thead>
             <tbody>
@@ -103,17 +107,17 @@ export default async function CorrectionsPage() {
                     {emp.last} {emp.first}
                   </td>
                   <td className="text-xs">
-                    {describeDay(old)} → {describeDay(r)}
+                    {describe(old)} → {describe(r)}
                   </td>
                   <td className="text-xs whitespace-nowrap">
-                    <span className={d!.decision === "approved" ? "text-green-700" : "text-red-700"}>{d!.decision}</span> · {decidedBy}
+                    <span className={d!.decision === "approved" ? "text-green-700" : "text-red-700"}>{t(d!.decision === "approved" ? "decision.approved" : "decision.rejected")}</span> · {decidedBy}
                     {d!.note ? ` – ${d!.note}` : ""}
                   </td>
                 </tr>
               ))}
               {done.length === 0 && (
                 <tr>
-                  <td colSpan={4} className="py-4 text-center text-gray-500">None yet</td>
+                  <td colSpan={4} className="py-4 text-center text-gray-500">{t("corrections.noneYet")}</td>
                 </tr>
               )}
             </tbody>

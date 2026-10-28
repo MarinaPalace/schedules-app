@@ -9,11 +9,13 @@ import { formatHours } from "@/lib/shifts";
 import { CostChart } from "@/components/cost-chart";
 import { cumulativeCost } from "@/lib/chart-data";
 import { PeriodNav, href } from "@/components/toolbar";
+import { getLocale, getTranslations } from "next-intl/server";
 
 export default async function DepartmentDashboard({ params, searchParams }: PageProps<"/dashboard/[deptId]">) {
   const user = await requireUser(["manager", "top_manager", "owner", "accountant", "admin"]);
   const { deptId } = await params;
   const sp = (await searchParams) as { month?: string };
+  const [t, locale] = await Promise.all([getTranslations(), getLocale()]);
   const dept = (await getVisibleDepartments(user)).find((d) => d.id === deptId);
   if (!dept) notFound();
   const today = todayISO();
@@ -26,41 +28,41 @@ export default async function DepartmentDashboard({ params, searchParams }: Page
   return (
     <div className="max-w-5xl space-y-6">
       <div>
-        <Link href={href("/dashboard", { month })} className="text-sm text-blue-700 hover:underline">← All departments</Link>
+        <Link href={href("/dashboard", { month })} className="text-sm text-blue-700 hover:underline">{t("dashboard.allDepartmentsBack")}</Link>
         <div className="mt-1 flex flex-wrap items-center gap-3">
           <h1 className="page-title mr-2">{dept.name}</h1>
           <PeriodNav
-            label={monthLabel(month)}
+            label={monthLabel(month, locale)}
             prev={href(`/dashboard/${dept.id}`, { month: addMonths(month, -1) })}
             next={href(`/dashboard/${dept.id}`, { month: addMonths(month, 1) })}
           />
-          <Link href={href("/schedule", { dept: dept.id, view: "month", month })} className="btn btn-sm">Schedule</Link>
-          <Link href={href("/timesheet/month", { dept: dept.id, month })} className="btn btn-sm">Forma 76</Link>
+          <Link href={href("/schedule", { dept: dept.id, view: "month", month })} className="btn btn-sm">{t("nav.schedule")}</Link>
+          <Link href={href("/timesheet/month", { dept: dept.id, month })} className="btn btn-sm">{t("nav.forma76")}</Link>
         </div>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-3">
         <div className="card">
-          <div className="text-xs text-gray-500">Budget</div>
+          <div className="text-xs text-gray-500">{t("common.budget")}</div>
           <div className="mt-1 text-xl font-semibold tabular-nums">{m.budgetCents !== null ? formatEur(m.budgetCents) : "—"}</div>
-          {m.budgetHours !== null && <div className="text-xs text-gray-500">{m.budgetHours} h planned</div>}
+          {m.budgetHours !== null && <div className="text-xs text-gray-500">{t("dashboard.plannedHours", { hours: m.budgetHours })}</div>}
         </div>
         <div className="card">
-          <div className="text-xs text-gray-500">Actual / projected</div>
+          <div className="text-xs text-gray-500">{t("dashboard.actualProjected")}</div>
           <div className="mt-1 text-xl font-semibold tabular-nums">
             {formatEur(m.actualCents)} <span className="text-gray-400">/</span> {formatEur(m.projectedCents)}
           </div>
           <div className="text-xs text-gray-500">
-            {formatHours(m.actualMinutes)} h / {formatHours(m.projectedMinutes)} h
-            {m.budgetHours !== null && ` of ${m.budgetHours} h`}
+            {formatHours(m.actualMinutes)} / {formatHours(m.projectedMinutes)} {t("common.hourUnit")}
+            {m.budgetHours !== null && ` ${t("dashboard.ofHours", { hours: m.budgetHours })}`}
           </div>
         </div>
         <div className="card">
-          <div className="text-xs text-gray-500">Status</div>
+          <div className="text-xs text-gray-500">{t("common.status")}</div>
           <div className={`mt-1 text-xl font-semibold ${status === "over" ? "text-red-700" : status === "none" ? "text-gray-500" : "text-green-700"}`}>
-            {status === "over" ? "▲ Over budget" : status === "on_track" ? "● On track" : status === "under" ? "✓ Under budget" : "○ No budget"}
+            {status === "over" ? `▲ ${t("dashboard.over")}` : status === "on_track" ? `● ${t("dashboard.onTrack")}` : status === "under" ? `✓ ${t("dashboard.under")}` : `○ ${t("dashboard.noBudget")}`}
           </div>
-          {m.unapprovedDays > 0 && <div className="text-xs text-amber-700">{m.unapprovedDays} unapproved past day(s)</div>}
+          {m.unapprovedDays > 0 && <div className="text-xs text-amber-700">{t("dashboard.unapprovedPast", { count: m.unapprovedDays })}</div>}
         </div>
       </div>
 
@@ -72,11 +74,11 @@ export default async function DepartmentDashboard({ params, searchParams }: Page
         <table className="table">
           <thead>
             <tr>
-              <th>Employee</th>
-              <th className="text-right">Approved h</th>
-              <th className="text-right">Still planned h</th>
-              <th className="text-right">Actual cost</th>
-              <th className="text-right">Projected cost</th>
+              <th>{t("common.employee")}</th>
+              <th className="text-right">{t("dashboard.approvedH")}</th>
+              <th className="text-right">{t("dashboard.stillPlannedH")}</th>
+              <th className="text-right">{t("dashboard.actualCost")}</th>
+              <th className="text-right">{t("dashboard.projectedCost")}</th>
             </tr>
           </thead>
           <tbody>
@@ -91,7 +93,7 @@ export default async function DepartmentDashboard({ params, searchParams }: Page
             ))}
             {m.employees.length === 0 && (
               <tr>
-                <td colSpan={5} className="py-6 text-center text-gray-500">No hours this month yet.</td>
+                <td colSpan={5} className="py-6 text-center text-gray-500">{t("dashboard.noHours")}</td>
               </tr>
             )}
           </tbody>

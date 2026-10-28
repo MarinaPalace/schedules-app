@@ -4,6 +4,7 @@ import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 import { Pool } from "pg";
 import { PGlite } from "@electric-sql/pglite";
 import * as schema from "./schema";
+import { claimLocalDb } from "./local-lock";
 
 export type DB = PgDatabase<PgQueryResultHKT, typeof schema>;
 
@@ -13,7 +14,9 @@ function createDb(): DB {
   if (url) {
     return drizzlePg({ client: new Pool({ connectionString: url, max: 5 }), schema }) as unknown as DB;
   }
-  const client = new PGlite(process.env.PGLITE_DIR || "./.pglite");
+  const dir = process.env.PGLITE_DIR || "./.pglite";
+  claimLocalDb(dir);
+  const client = new PGlite(dir);
   return drizzlePglite({ client, schema }) as unknown as DB;
 }
 

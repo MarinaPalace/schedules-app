@@ -4,9 +4,11 @@ import { departmentManagers, departments, employees, user } from "@/db/schema";
 import { requireUser } from "@/lib/session";
 import { ActionForm, SubmitButton } from "@/components/action-form";
 import { createDepartment, setDepartmentManagers, updateDepartment } from "./actions";
+import { getTranslations } from "next-intl/server";
 
 export default async function DepartmentsPage() {
   await requireUser(["admin", "top_manager"]);
+  const t = await getTranslations();
 
   const [rows, managers, links] = await Promise.all([
     db
@@ -24,15 +26,15 @@ export default async function DepartmentsPage() {
 
   return (
     <div className="max-w-4xl space-y-6">
-      <h1 className="page-title">Departments</h1>
+      <h1 className="page-title">{t("departments.title")}</h1>
 
       <div className="card">
         <ActionForm action={createDepartment} resetOnSuccess className="flex flex-wrap items-end gap-2">
           <div className="min-w-48 flex-1">
-            <label className="label">New department</label>
-            <input name="name" className="input" placeholder="e.g. Spa" required />
+            <label className="label">{t("departments.new")}</label>
+            <input name="name" className="input" placeholder={t("departments.placeholder")} required />
           </div>
-          <SubmitButton>Add</SubmitButton>
+          <SubmitButton>{t("common.add")}</SubmitButton>
         </ActionForm>
       </div>
 
@@ -44,20 +46,20 @@ export default async function DepartmentsPage() {
               <ActionForm action={updateDepartment} className="flex flex-wrap items-end gap-3">
                 <input type="hidden" name="id" value={d.id} />
                 <div className="min-w-48 flex-1">
-                  <label className="label">Name · {d.staff} active staff</label>
+                  <label className="label">{t("departments.staffCount", { count: d.staff })}</label>
                   <input name="name" defaultValue={d.name} className="input" required />
                 </div>
                 <label className="flex items-center gap-2 pb-2 text-sm">
-                  <input type="checkbox" name="active" defaultChecked={d.active} /> Active
+                  <input type="checkbox" name="active" defaultChecked={d.active} /> {t("common.active")}
                 </label>
-                <SubmitButton className="btn">Save</SubmitButton>
+                <SubmitButton className="btn">{t("common.save")}</SubmitButton>
               </ActionForm>
 
               <ActionForm action={setDepartmentManagers}>
                 <input type="hidden" name="departmentId" value={d.id} />
-                <div className="label">Managers</div>
+                <div className="label">{t("departments.managers")}</div>
                 {managers.length === 0 ? (
-                  <p className="text-sm text-gray-500">No users with the Manager role yet (Users &amp; roles).</p>
+                  <p className="text-sm text-gray-500">{t("departments.noManagers")}</p>
                 ) : (
                   <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
                     {managers.map((m) => (
@@ -66,7 +68,7 @@ export default async function DepartmentsPage() {
                         {m.name}
                       </label>
                     ))}
-                    <SubmitButton className="btn btn-sm">Save managers</SubmitButton>
+                    <SubmitButton className="btn btn-sm">{t("departments.saveManagers")}</SubmitButton>
                   </div>
                 )}
               </ActionForm>

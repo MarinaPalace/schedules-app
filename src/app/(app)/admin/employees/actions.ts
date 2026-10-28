@@ -1,11 +1,13 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { getTranslations } from "next-intl/server";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { employeeRates, employees, user } from "@/db/schema";
 import { withActor } from "@/lib/actor";
 import { run, type ActionState } from "@/lib/action-state";
+import { AppError } from "@/lib/app-error";
 import { parseEurToCents } from "@/lib/money";
 import { assertRole } from "@/lib/session";
 import { createLogin, setPassword } from "@/lib/users";
@@ -13,16 +15,17 @@ import { createLogin, setPassword } from "@/lib/users";
 const ADMINS = ["admin", "top_manager"] as const;
 
 const employeeFields = z.object({
-  firstName: z.string().trim().min(1, "First name is required"),
-  lastName: z.string().trim().min(1, "Last name is required"),
+  firstName: z.string().trim().min(1, "nameTooShort"),
+  lastName: z.string().trim().min(1, "nameTooShort"),
   employeeNo: z.string().trim().optional().transform((v) => v || null),
   position: z.string().trim().optional().transform((v) => v || null),
-  departmentId: z.uuid("Choose a department"),
+  departmentId: z.uuid("chooseDepartment"),
 });
+const dateSchema = z.iso.date("dateRequired");
 
 function rateFrom(form: FormData): number {
   const cents = parseEurToCents(String(form.get("hourlyRate") ?? ""));
-  if (cents === null || cents <= 0) throw new Error("Hourly rate must be a positive amount, e.g. 7.50");
+  if (cents === null || cents <= 0) throw new AppError("rateFormat");
   return cents;
 }
 
@@ -31,14 +34,13 @@ export async function createEmployee(_: ActionState, form: FormData): Promise<Ac
     const me = await assertRole(ADMINS);
     const data = employeeFields.parse(Object.fromEntries(form));
     const hourlyRateCents = rateFrom(form);
-    const effectiveFrom = z.iso.date("Rate start date is required").parse(form.get("effectiveFrom"));
+    const effectiveFrom = dateSchema.parse(form.get("effectiveFrom"));
     const username = String(form.get("username") ?? "").trim();
     const password = String(form.get("password") ?? "");
+    const name = `${data.firstName} ${data.lastName}`;
 
     await withActor(me.id, async (tx) => {
-      const userId = username
-        ? await createLogin(tx, { username, password, name: `${data.firstName} ${data.lastName}`, role: "employee" })
-        : null;
+      const userId = username ? await createLogin(tx, { username, password, name, role: "employee" }) : null;
       const [emp] = await tx
         .insert(employees)
         .values({ ...data, userId, canViewDepartment: form.get("canViewDepartment") === "on" })
@@ -46,7 +48,8 @@ export async function createEmployee(_: ActionState, form: FormData): Promise<Ac
       await tx.insert(employeeRates).values({ employeeId: emp.id, hourlyRateCents, effectiveFrom, createdBy: me.id });
     });
     revalidatePath("/admin/employees");
-    return `${data.firstName} ${data.lastName} added${username ? ` with login "${username.toLowerCase()}"` : ""}`;
+    const t = await getTranslations("employees");
+    return username ? t("addedWithLogin", { name, username: username.toLowerCase() }) : t("added", { name });
   });
 }
 
@@ -75,10 +78,10 @@ export async function addRate(_: ActionState, form: FormData): Promise<ActionSta
     const me = await assertRole(ADMINS);
     const employeeId = z.uuid().parse(form.get("employeeId"));
     const hourlyRateCents = rateFrom(form);
-    const effectiveFrom = z.iso.date("Start date is required").parse(form.get("effectiveFrom"));
+    const effectiveFrom = dateSchema.parse(form.get("effectiveFrom"));
     await withActor(me.id, (tx) => tx.insert(employeeRates).values({ employeeId, hourlyRateCents, effectiveFrom, createdBy: me.id }));
     revalidatePath(`/admin/employees/${employeeId}`);
-    return "Rate added";
+    return (await getTranslations("employees"))("rateAdded");
   });
 }
 
@@ -88,8 +91,8 @@ export async function createEmployeeLogin(_: ActionState, form: FormData): Promi
     const employeeId = z.uuid().parse(form.get("employeeId"));
     await withActor(me.id, async (tx) => {
       const emp = await tx.query.employees.findFirst({ where: eq(employees.id, employeeId) });
-      if (!emp) throw new Error("Employee not found");
-      if (emp.userId) throw new Error("Employee already has a login");
+      if (!emp) throw new AppError("employeeNotFound");
+      if (emp.userId) throw new AppError("employeeHasLogin");
       const userId = await createLogin(tx, {
         username: String(form.get("username") ?? ""),
         password: String(form.get("password") ?? ""),
@@ -99,7 +102,7 @@ export async function createEmployeeLogin(_: ActionState, form: FormData): Promi
       await tx.update(employees).set({ userId }).where(eq(employees.id, employeeId));
     });
     revalidatePath(`/admin/employees/${employeeId}`);
-    return "Login created";
+    return (await getTranslations("employees"))("loginCreated");
   });
 }
 
@@ -109,13 +112,13 @@ export async function resetPassword(_: ActionState, form: FormData): Promise<Act
     const userId = z.string().min(1).parse(form.get("userId"));
     const target = await withActor(me.id, async (tx) => {
       const u = await tx.query.user.findFirst({ where: eq(user.id, userId) });
-      if (!u) throw new Error("User not found");
+      if (!u) throw new AppError("userNotFound");
       // Only admins may reset passwords of manager-level users.
-      if (u.role !== "employee" && me.role !== "admin") throw new Error("Only an admin can reset this password");
+      if (u.role !== "employee" && me.role !== "admin") throw new AppError("adminOnlyReset");
       await setPassword(tx, userId, String(form.get("password") ?? ""));
       return u;
     });
     revalidatePath("/admin/users");
-    return `Password for "${target.username}" changed`;
+    return (await getTranslations("employees"))("passwordChanged", { username: target.username ?? "" });
   });
 }

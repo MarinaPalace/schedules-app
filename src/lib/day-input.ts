@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { ErrorKey } from "@/lib/app-error";
 import { isAbsenceCode, type DayValue } from "@/lib/codes";
 import { paidMinutes, parseSegments } from "@/lib/shifts";
 
@@ -11,17 +12,17 @@ export const dayInputSchema = z.object({
 });
 export type DayInput = z.infer<typeof dayInputSchema>;
 
-/** Converts input to a stored value, or returns an error message. */
-export function toDayValue(input: DayInput): DayValue | string {
+/** Converts input to a stored value, or returns an error key (messages → errors). */
+export function toDayValue(input: DayInput): DayValue | ErrorKey {
   if (input.kind === "shift") {
     const segments = parseSegments(input.hours);
-    if (!segments) return 'Hours must look like "08:00-16:00" or "09:00-11:00 / 15:00-20:00"';
+    if (!segments) return "hoursFormat";
     const paid = paidMinutes(segments, input.breakMinutes);
-    if (paid <= 0) return "Break is longer than the shift";
+    if (paid <= 0) return "breakTooLong";
     return { kind: "shift", segments, breakMinutes: input.breakMinutes, paidMinutes: paid };
   }
   if (input.kind === "absence") {
-    if (!isAbsenceCode(input.absenceCode)) return "Choose an absence type";
+    if (!isAbsenceCode(input.absenceCode)) return "chooseAbsence";
     return { kind: "absence", segments: [], paidMinutes: 0, absenceCode: input.absenceCode };
   }
   return { kind: input.kind, segments: [], paidMinutes: 0 };

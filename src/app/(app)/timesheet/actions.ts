@@ -9,24 +9,27 @@ import { isISODate } from "@/lib/calendar";
 import { todayISO } from "@/lib/dates";
 import { dayInputSchema, sameDay, toDayValue } from "@/lib/day-input";
 import { assertRole, canManageDepartment, getCurrentUser } from "@/lib/session";
+import { AppError } from "@/lib/app-error";
+import { errorMessage } from "@/lib/errors";
+import { getTranslations } from "next-intl/server";
 
 type Result = { error?: string; ok?: string };
 
-function fail(e: unknown): Result {
-  const err = e as { message?: string; issues?: { message: string }[]; cause?: { code?: string } };
-  if (err.cause?.code === "23505") return { error: "Someone else approved this in the meantime. Reload the page." };
-  return { error: err.issues?.[0]?.message ?? err.message ?? "Could not save" };
+async function fail(e: unknown): Promise<Result> {
+  const err = e as { cause?: { code?: string } };
+  if (err.cause?.code === "23505") return { error: await errorMessage(new AppError("approvedMeanwhile")) };
+  return { error: await errorMessage(e) };
 }
 
 async function authorize(departmentId: string) {
   const me = await getCurrentUser();
-  if (!me || !(await canManageDepartment(me, departmentId))) throw new Error("You cannot approve this department");
+  if (!me || !(await canManageDepartment(me, departmentId))) throw new AppError("cannotApprove");
   return me;
 }
 
 const approveSchema = z.object({
   departmentId: z.uuid(),
-  date: z.string().refine(isISODate),
+  date: z.string().refine(isISODate, "invalid"),
   rows: z.array(z.object({ employeeId: z.uuid(), input: dayInputSchema })).min(1),
 });
 
@@ -34,24 +37,24 @@ const approveSchema = z.object({
 export async function approveDay(raw: unknown): Promise<Result> {
   try {
     const { departmentId, date, rows } = approveSchema.parse(raw);
-    if (date > todayISO()) throw new Error("Future days cannot be approved");
+    if (date > todayISO()) throw new AppError("futureDays");
     const me = await authorize(departmentId);
 
     const values = rows.map(({ employeeId, input }) => {
       const v = toDayValue(input);
-      if (typeof v === "string") throw new Error(v);
+      if (typeof v === "string") throw new AppError(v);
       return { employeeId, v };
     });
 
     await withActor(me.id, async (tx) => {
       const ids = values.map((r) => r.employeeId);
       const known = await tx.select({ id: employees.id }).from(employees).where(inArray(employees.id, ids));
-      if (known.length !== new Set(ids).size) throw new Error("Unknown employee");
+      if (known.length !== new Set(ids).size) throw new AppError("unknownEmployee");
       const existing = await tx
         .select({ id: timesheetEntries.employeeId })
         .from(timesheetEntries)
         .where(and(eq(timesheetEntries.workDate, date), inArray(timesheetEntries.employeeId, ids)));
-      if (existing.length) throw new Error("Some of these days are already approved. Reload the page.");
+      if (existing.length) throw new AppError("alreadyApproved");
       await tx.insert(timesheetEntries).values(
         values.map(({ employeeId, v }) => ({
           employeeId,
@@ -68,18 +71,18 @@ export async function approveDay(raw: unknown): Promise<Result> {
       );
     });
     revalidatePath("/timesheet");
-    return { ok: `${values.length} approved` };
+    return { ok: (await getTranslations("timesheet"))("approvedCount", { count: values.length }) };
   } catch (e) {
-    return fail(e);
+    return await fail(e);
   }
 }
 
 const correctionSchema = z.object({
   departmentId: z.uuid(),
   employeeId: z.uuid(),
-  date: z.string().refine(isISODate),
+  date: z.string().refine(isISODate, "invalid"),
   input: dayInputSchema,
-  reason: z.string().trim().min(3, "Write a reason for the change"),
+  reason: z.string().trim().min(3, "reasonRequired"),
 });
 
 /** Changing an approved day goes to the top manager for approval. */
@@ -88,7 +91,7 @@ export async function requestCorrection(raw: unknown): Promise<Result> {
     const { departmentId, employeeId, date, input, reason } = correctionSchema.parse(raw);
     const me = await authorize(departmentId);
     const v = toDayValue(input);
-    if (typeof v === "string") throw new Error(v);
+    if (typeof v === "string") throw new AppError(v);
 
     await withActor(me.id, async (tx) => {
       const [current] = await tx
@@ -97,14 +100,14 @@ export async function requestCorrection(raw: unknown): Promise<Result> {
         .where(and(eq(timesheetEntries.employeeId, employeeId), eq(timesheetEntries.workDate, date)))
         .orderBy(desc(timesheetEntries.version))
         .limit(1);
-      if (!current) throw new Error("This day is not approved yet – approve it normally");
-      if (sameDay(v, current)) throw new Error("Nothing changed");
+      if (!current) throw new AppError("notApprovedYet");
+      if (sameDay(v, current)) throw new AppError("nothingChanged");
       const pending = await tx
         .select({ id: correctionRequests.id })
         .from(correctionRequests)
         .leftJoin(correctionDecisions, eq(correctionDecisions.requestId, correctionRequests.id))
         .where(and(eq(correctionRequests.employeeId, employeeId), eq(correctionRequests.workDate, date), isNull(correctionDecisions.id)));
-      if (pending.length) throw new Error("A correction for this day is already waiting for approval");
+      if (pending.length) throw new AppError("correctionPending");
       await tx.insert(correctionRequests).values({
         employeeId,
         workDate: date,
@@ -120,9 +123,9 @@ export async function requestCorrection(raw: unknown): Promise<Result> {
     });
     revalidatePath("/timesheet");
     revalidatePath("/corrections");
-    return { ok: "Sent to the top manager for approval" };
+    return { ok: (await getTranslations("timesheet"))("sentForApproval") };
   } catch (e) {
-    return fail(e);
+    return await fail(e);
   }
 }
 
@@ -139,9 +142,9 @@ export async function decideCorrection(raw: unknown): Promise<Result> {
 
     await withActor(me.id, async (tx) => {
       const req = await tx.query.correctionRequests.findFirst({ where: eq(correctionRequests.id, requestId) });
-      if (!req) throw new Error("Request not found");
+      if (!req) throw new AppError("requestNotFound");
       const done = await tx.query.correctionDecisions.findFirst({ where: eq(correctionDecisions.requestId, requestId) });
-      if (done) throw new Error(`Already ${done.decision}`);
+      if (done) throw new AppError("alreadyDecided");
 
       if (decision === "approved") {
         const [current] = await tx
@@ -150,7 +153,7 @@ export async function decideCorrection(raw: unknown): Promise<Result> {
           .where(and(eq(timesheetEntries.employeeId, req.employeeId), eq(timesheetEntries.workDate, req.workDate)))
           .orderBy(desc(timesheetEntries.version))
           .limit(1);
-        if (current.id !== req.baseTimesheetId) throw new Error("The day changed since this request was made – reject it and ask for a new one");
+        if (current.id !== req.baseTimesheetId) throw new AppError("dayChanged");
         await tx.insert(timesheetEntries).values({
           employeeId: req.employeeId,
           workDate: req.workDate,
@@ -170,8 +173,9 @@ export async function decideCorrection(raw: unknown): Promise<Result> {
     });
     revalidatePath("/corrections");
     revalidatePath("/timesheet");
-    return { ok: decision === "approved" ? "Approved – new version saved" : "Rejected" };
+    const t = await getTranslations("corrections");
+    return { ok: decision === "approved" ? t("approvedNew") : t("rejectedDone") };
   } catch (e) {
-    return fail(e);
+    return await fail(e);
   }
 }

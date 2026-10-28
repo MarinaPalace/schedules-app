@@ -8,9 +8,12 @@ import { requireUser } from "@/lib/session";
 import { ActionForm, SubmitButton } from "@/components/action-form";
 import { PeriodNav, href } from "@/components/toolbar";
 import { copyBudgetsFromPreviousMonth, saveBudgets, saveCostFactor } from "./actions";
+import { getLocale, getTranslations } from "next-intl/server";
 
 export default async function BudgetsPage({ searchParams }: PageProps<"/admin/budgets">) {
   const me = await requireUser(["owner", "admin", "top_manager"]);
+  const t = await getTranslations();
+  const locale = await getLocale();
   const sp = (await searchParams) as { month?: string };
   const month = isMonth(sp.month) ? sp.month : monthOf(todayISO());
   const deps = await db.select().from(departments).where(eq(departments.active, true)).orderBy(asc(departments.name));
@@ -19,9 +22,9 @@ export default async function BudgetsPage({ searchParams }: PageProps<"/admin/bu
   return (
     <div className="max-w-3xl space-y-6">
       <div className="flex flex-wrap items-center gap-3">
-        <h1 className="page-title mr-2">Labour budgets</h1>
+        <h1 className="page-title mr-2">{t("budgets.title")}</h1>
         <PeriodNav
-          label={monthLabel(month)}
+          label={monthLabel(month, locale)}
           prev={href("/admin/budgets", { month: addMonths(month, -1) })}
           next={href("/admin/budgets", { month: addMonths(month, 1) })}
         />
@@ -33,9 +36,9 @@ export default async function BudgetsPage({ searchParams }: PageProps<"/admin/bu
           <table className="table">
             <thead>
               <tr>
-                <th>Department</th>
-                <th>Budget (€, employer cost)</th>
-                <th>Hours (optional)</th>
+                <th>{t("common.department")}</th>
+                <th>{t("budgets.amount")}</th>
+                <th>{t("budgets.hoursOptional")}</th>
               </tr>
             </thead>
             <tbody>
@@ -55,27 +58,27 @@ export default async function BudgetsPage({ searchParams }: PageProps<"/admin/bu
               })}
             </tbody>
           </table>
-          <SubmitButton>Save budgets for {monthLabel(month)}</SubmitButton>
+          <SubmitButton>{t("budgets.saveFor", { month: monthLabel(month, locale) })}</SubmitButton>
         </ActionForm>
         <ActionForm action={copyBudgetsFromPreviousMonth} className="mt-3">
           <input type="hidden" name="month" value={month} />
-          <SubmitButton className="btn btn-sm">Copy empty ones from {monthLabel(addMonths(month, -1))}</SubmitButton>
+          <SubmitButton className="btn btn-sm">{t("budgets.copyFrom", { month: monthLabel(addMonths(month, -1), locale) })}</SubmitButton>
         </ActionForm>
-        <p className="mt-3 text-xs text-gray-500">Every change is kept in history; the latest value counts.</p>
+        <p className="mt-3 text-xs text-gray-500">{t("budgets.historyNote")}</p>
       </div>
 
       {(me.role === "owner" || me.role === "admin") && (
         <div className="card">
-          <h2 className="mb-1 font-medium">Employer cost factor</h2>
+          <h2 className="mb-1 font-medium">{t("budgets.factorTitle")}</h2>
           <p className="mb-3 text-sm text-gray-500">
-            Gross hourly rate × factor = cost used in budgets. 1.19 ≈ gross pay + employer social contributions. Ask the accountants for the right value.
+            {t("budgets.factorHelp")}
           </p>
           <ActionForm action={saveCostFactor} className="flex items-end gap-2">
             <div>
-              <label className="label">Factor</label>
+              <label className="label">{t("budgets.factor")}</label>
               <input name="factor" defaultValue={factor} className="input w-24" inputMode="decimal" />
             </div>
-            <SubmitButton className="btn">Save</SubmitButton>
+            <SubmitButton className="btn">{t("common.save")}</SubmitButton>
           </ActionForm>
         </div>
       )}

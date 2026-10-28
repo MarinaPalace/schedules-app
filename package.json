@@ -12,7 +12,8 @@
     "db:migrate": "tsx scripts/migrate.ts",
     "db:seed": "tsx scripts/seed.ts",
     "db:check": "tsx scripts/check-db.ts",
-    "test": "vitest run"
+    "test": "vitest run",
+    "db:reset": "tsx scripts/reset.ts"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.5.12",
@@ -20,6 +21,7 @@
     "date-fns": "^4.4.0",
     "drizzle-orm": "^0.45.4",
     "next": "16.4.3",
+    "next-intl": "^4.14.9",
     "pg": "^8.23.1",
     "react": "19.3.0",
     "react-dom": "19.3.0",

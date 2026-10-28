@@ -30,10 +30,10 @@ describe("shift hours", () => {
 
 describe("day input", () => {
   it("rejects a break longer than the shift", () => {
-    expect(toDayValue({ kind: "shift", hours: "08:00-09:00", breakMinutes: 90, absenceCode: null })).toMatch(/Break/);
+    expect(toDayValue({ kind: "shift", hours: "08:00-09:00", breakMinutes: 90, absenceCode: null })).toBe("breakTooLong");
   });
   it("requires a known absence code", () => {
-    expect(toDayValue({ kind: "absence", hours: "", breakMinutes: 0, absenceCode: "X" })).toMatch(/absence/);
+    expect(toDayValue({ kind: "absence", hours: "", breakMinutes: 0, absenceCode: "X" })).toBe("chooseAbsence");
     expect(toDayValue({ kind: "absence", hours: "", breakMinutes: 0, absenceCode: "Б" })).toMatchObject({ paidMinutes: 0, absenceCode: "Б" });
   });
 });

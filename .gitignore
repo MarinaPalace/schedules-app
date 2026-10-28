@@ -44,3 +44,6 @@ next-env.d.ts
 /.pglite
 
 !.env.example
+/.pglite.lock
+/.pglite-test
+/.pglite-test.lock

@@ -1,44 +1,59 @@
-import { requireUser, ROLE_LABELS, type Role } from "@/lib/session";
+import { getTranslations } from "next-intl/server";
+import { requireUser, type Role } from "@/lib/session";
 import { signOut } from "@/app/actions/auth";
-import { Nav, type NavItem } from "@/components/nav";
+import { Nav } from "@/components/nav";
+import { LanguageSwitcher } from "@/components/language-switcher";
 
-const NAV: Array<NavItem & { roles: Role[] }> = [
-  { href: "/dashboard", label: "Dashboard", roles: ["manager", "top_manager", "owner", "accountant", "admin"] },
-  { href: "/schedule", label: "Schedule", roles: ["manager", "top_manager", "owner", "accountant", "admin"] },
-  { href: "/timesheet", label: "Forma 76", roles: ["manager", "top_manager", "owner", "accountant", "admin"] },
-  { href: "/corrections", label: "Corrections", roles: ["manager", "top_manager", "owner", "admin"] },
-  { href: "/advances", label: "Advances", roles: ["manager", "top_manager", "owner", "accountant", "admin"] },
-  { href: "/me", label: "My schedule", roles: ["employee", "manager", "top_manager", "admin"] },
-  { href: "/admin/budgets", label: "Budgets", section: "Admin", roles: ["owner", "admin", "top_manager"] },
-  { href: "/admin/departments", label: "Departments", section: "Admin", roles: ["admin", "top_manager"] },
-  { href: "/admin/employees", label: "Employees", section: "Admin", roles: ["admin", "top_manager"] },
-  { href: "/admin/shifts", label: "Shift legends", section: "Admin", roles: ["admin", "top_manager"] },
-  { href: "/admin/users", label: "Users & roles", section: "Admin", roles: ["admin"] },
-  { href: "/admin/audit", label: "Audit log", section: "Admin", roles: ["admin", "owner"] },
+type NavKey = "dashboard" | "schedule" | "forma76" | "corrections" | "advances" | "mySchedule" | "budgets" | "departments" | "employees" | "shifts" | "users" | "audit";
+
+const NAV: Array<{ href: string; key: NavKey; admin?: boolean; roles: Role[] }> = [
+  { href: "/dashboard", key: "dashboard", roles: ["manager", "top_manager", "owner", "accountant", "admin"] },
+  { href: "/schedule", key: "schedule", roles: ["manager", "top_manager", "owner", "accountant", "admin"] },
+  { href: "/timesheet", key: "forma76", roles: ["manager", "top_manager", "owner", "accountant", "admin"] },
+  { href: "/corrections", key: "corrections", roles: ["manager", "top_manager", "owner", "admin"] },
+  { href: "/advances", key: "advances", roles: ["manager", "top_manager", "owner", "accountant", "admin"] },
+  { href: "/me", key: "mySchedule", roles: ["employee", "manager", "top_manager", "admin"] },
+  { href: "/admin/budgets", key: "budgets", admin: true, roles: ["owner", "admin", "top_manager"] },
+  { href: "/admin/departments", key: "departments", admin: true, roles: ["admin", "top_manager"] },
+  { href: "/admin/employees", key: "employees", admin: true, roles: ["admin", "top_manager"] },
+  { href: "/admin/shifts", key: "shifts", admin: true, roles: ["admin", "top_manager"] },
+  { href: "/admin/users", key: "users", admin: true, roles: ["admin"] },
+  { href: "/admin/audit", key: "audit", admin: true, roles: ["admin", "owner"] },
 ];
 
 export default async function AppLayout({ children }: LayoutProps<"/">) {
   const user = await requireUser();
-  const items = NAV.filter((n) => n.roles.includes(user.role)).map(({ href, label, section }) => ({ href, label, section }));
+  const t = await getTranslations();
+  const items = NAV.filter((n) => n.roles.includes(user.role)).map((n) => ({
+    href: n.href,
+    label: t(`nav.${n.key}`),
+    section: n.admin ? t("nav.adminSection") : undefined,
+  }));
 
   return (
     <div className="flex min-h-full flex-1 flex-col md:flex-row">
       <aside className="border-b border-gray-200 bg-white p-3 md:w-56 md:shrink-0 md:border-r md:border-b-0">
         <div className="mb-2 flex items-center justify-between md:mb-4 md:block">
           <div className="px-3">
-            <div className="text-sm font-semibold">Hotel Schedules</div>
+            <div className="text-sm font-semibold">{t("common.appName")}</div>
             <div className="text-xs text-gray-500">
-              {user.name} · {ROLE_LABELS[user.role]}
+              {user.name} · {t(`roles.${user.role}`)}
             </div>
           </div>
-          <form action={signOut} className="md:hidden">
-            <button className="btn btn-sm">Sign out</button>
-          </form>
+          <div className="flex items-center gap-2 md:hidden">
+            <LanguageSwitcher />
+            <form action={signOut}>
+              <button className="btn btn-sm">{t("common.signOut")}</button>
+            </form>
+          </div>
         </div>
         <Nav items={items} />
-        <form action={signOut} className="mt-6 hidden px-3 md:block">
-          <button className="text-sm text-gray-500 hover:text-gray-800">Sign out</button>
-        </form>
+        <div className="mt-6 hidden space-y-3 px-3 md:block">
+          <LanguageSwitcher />
+          <form action={signOut}>
+            <button className="text-sm text-gray-500 hover:text-gray-800">{t("common.signOut")}</button>
+          </form>
+        </div>
       </aside>
       <main className="min-w-0 flex-1 p-4 sm:p-6">{children}</main>
     </div>

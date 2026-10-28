@@ -1,21 +1,12 @@
 import type { Segment } from "@/db/schema";
 
-/** Absence codes as used on the paper Forma 76. Absences count 0 hours in cost estimates. */
-export const ABSENCE_CODES = [
-  { code: "О", label: "Annual leave" },
-  { code: "Б", label: "Sick leave" },
-  { code: "НП", label: "Unpaid leave" },
-  { code: "Н", label: "Absent (unexcused)" },
-] as const;
+/** Absence codes as used on the paper Forma 76 (labels are in messages/*.json → "absence"). Absences count 0 hours. */
+export const ABSENCE_CODES = ["О", "Б", "НП", "Н"] as const;
 
-export type AbsenceCode = (typeof ABSENCE_CODES)[number]["code"];
+export type AbsenceCode = (typeof ABSENCE_CODES)[number];
 
 export function isAbsenceCode(c: unknown): c is AbsenceCode {
-  return ABSENCE_CODES.some((a) => a.code === c);
-}
-
-export function absenceLabel(code: string | null): string {
-  return ABSENCE_CODES.find((a) => a.code === code)?.label ?? code ?? "";
+  return ABSENCE_CODES.includes(c as AbsenceCode);
 }
 
 /** What a manager can put in one schedule / timesheet cell. */
@@ -31,4 +22,9 @@ export type DayValue = {
   absenceCode?: string | null;
 };
 
-export const EMPTY_DAY: DayValue = { kind: "none", segments: [], paidMinutes: 0 };
+/** Translated words needed to describe a day; built with useDayLabels() / getDayLabels(). */
+export type DayLabels = {
+  dayOff: string;
+  hourUnit: string;
+  absence: Record<string, string>;
+};

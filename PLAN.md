@@ -2,7 +2,7 @@
 
 Status legend: `[x]` done · `[~]` in progress / partial · `[ ]` pending
 
-Last updated: 2026-10-28 (Phases 0–5 done)
+Last updated: 2026-10-28 (Phases 0–5 done, languages + publishing added)
 
 ---
 
@@ -140,10 +140,11 @@ Dashboard numbers per department & month:
 **Not yet done:** a visual click-through in a real browser.
 
 ### Phase 6 — Hardening & rollout
-- [ ] Bulgarian UI translation (next-intl) — confirm language with owner
+- [x] Three languages: Bulgarian (default), English, Russian (next-intl; switcher on login + sidebar; remembered per device; browser language used first time)
+- [x] Translation safety: typecheck fails on unknown keys; `npm test` fails if bg/ru miss a key or a {placeholder}
 - [ ] Separate Postgres role without DELETE privileges for the app (Neon/Supabase)
 - [ ] Visual review on desktop + phone; polish after first real use
-- [ ] Optional: "publish week" step before employees see schedule changes
+- [x] Publishing: employees see the schedule only after the manager publishes (Publish button on the grid, amber dot = unpublished change, append-only publication log)
 - [x] Automated tests: hour/cost calculations (`npm test`), trigger blocks (`npm run db:check`)
 - [ ] Automated permission tests (currently verified manually over HTTP)
 - [ ] Backups / restore test (provider point-in-time recovery)
@@ -154,13 +155,13 @@ Dashboard numbers per department & month:
 
 ## 6. Open questions
 
-- [ ] UI language: Bulgarian only, or Bulgarian + English?
+- [x] UI language → Bulgarian, English **and** Russian (decided 2026-10-28)
 - [ ] Budgets in € only, or also in hours? (model supports both; UI shows € first)
 - [ ] Employees on monthly salary: enter an hourly equivalent? (current assumption: yes)
-- [ ] Employer cost factor — confirm with accountants (default 1.19)
+- [x] Employer cost factor → 1.19 for now; owner/admin change it in **Budgets → Employer cost factor**
 - [ ] Who decides advances: manager alone, or manager + top manager? (current: department manager or top manager, one decision)
-- [ ] Should managers be able to add/edit employees of their own department? (current: admin + top manager)
-- [ ] Should employees see schedule changes immediately, or only after the manager "publishes" a week?
+- [x] Managers add/edit employees → **No**, stays admin + top manager (decided 2026-10-28)
+- [x] Employees see changes → **only after the manager publishes** (decided 2026-10-28, built)
 
 ## 7. Running locally
 
@@ -174,11 +175,14 @@ npm run dev
 
 Demo logins (after seed): `admin`, `owner`, `topmanager`, `accountant`, `manager.fo` (Front Office), `manager.hk` (Housekeeping + F&B), employees `ivan.petrov`, `petya.todorova` — password `demo1234`. The seed fills the current month with schedules, approved Forma 76 up to yesterday, budgets, one pending correction and one pending advance.
 
-Tests: `npm test` (calculations) and `npm run db:check` (no-delete rules + audit chain).
+Tests: `npm test` (calculations + translations) and `npm run db:check` (no-delete rules + audit chain).
 
-Note: with PGlite, stop `npm run dev` before running migrate/seed (single-process database).
+Local database notes:
+- `npm run dev` applies new migrations automatically on start (local database only).
+- `npm run db:reset` wipes and rebuilds the local demo database. Stop `npm run dev` first – the `db:*` scripts refuse to run while the app has the local database open.
 
 ## 8. Change log
 
 - 2026-10-28 — Project created; Phase 0 + Phase 1 built and verified.
-- 2026-10-28 — Phases 2–5 built and verified (schedule grid, Forma 76 + corrections + export, budget dashboard, employee pay view + advances, PWA). DB driver → `pg`. Next: visual review, open questions, Phase 6.
+- 2026-10-28 — Phases 2–5 built and verified (schedule grid, Forma 76 + corrections + export, budget dashboard, employee pay view + advances, PWA). DB driver → `pg`.
+- 2026-10-28 — Fixed "Failed query … break_minutes": a running dev server kept an old in-memory copy of the local database while it was rebuilt. Now: auto-migrate on start + lock file so scripts can't touch the database the app has open. Added BG/EN/RU and schedule publishing; open questions 2.1–2.4 answered. Next: visual review, Phase 6.

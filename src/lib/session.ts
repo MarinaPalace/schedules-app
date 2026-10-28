@@ -6,18 +6,10 @@ import { and, eq } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { db } from "@/db/client";
 import { departmentManagers, departments, employees } from "@/db/schema";
+import { AppError } from "@/lib/app-error";
 
 export const ROLES = ["employee", "manager", "top_manager", "owner", "accountant", "admin"] as const;
 export type Role = (typeof ROLES)[number];
-
-export const ROLE_LABELS: Record<Role, string> = {
-  employee: "Employee",
-  manager: "Manager",
-  top_manager: "Top manager",
-  owner: "Owner",
-  accountant: "Accountant",
-  admin: "Admin",
-};
 
 export type CurrentUser = {
   id: string;
@@ -45,7 +37,7 @@ export async function requireUser(roles?: readonly Role[]): Promise<CurrentUser>
 /** For server actions: throws instead of redirecting. */
 export async function assertRole(roles: readonly Role[]): Promise<CurrentUser> {
   const user = await getCurrentUser();
-  if (!user || !roles.includes(user.role)) throw new Error("Not allowed");
+  if (!user || !roles.includes(user.role)) throw new AppError("notAllowed");
   return user;
 }
 

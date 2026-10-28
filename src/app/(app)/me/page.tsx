@@ -5,7 +5,8 @@ import { departments } from "@/db/schema";
 import { loadAdvances } from "@/lib/advances";
 import { addDays, addMonths, dateRange, dayLabel, isMonth, monthBounds, monthLabel, monthOf } from "@/lib/calendar";
 import { describeDay } from "@/lib/describe";
-import { key, loadRates, loadSchedule, loadShiftTemplates, loadTimesheet } from "@/lib/data";
+import { key, loadRates, loadShiftTemplates, loadTimesheet } from "@/lib/data";
+import { loadPublishedSchedule } from "@/lib/published";
 import { formatDateTime, hotelDate, todayISO } from "@/lib/dates";
 import { formatEur } from "@/lib/money";
 import { rateAt } from "@/lib/rates";
@@ -14,6 +15,8 @@ import { formatHours } from "@/lib/shifts";
 import { ActionForm, SubmitButton } from "@/components/action-form";
 import { PeriodNav, href } from "@/components/toolbar";
 import { requestOwnAdvance } from "../advances/actions";
+import { getDayLabels } from "@/lib/day-labels";
+import { getLocale, getTranslations } from "next-intl/server";
 
 type Day<T, S> = { ts?: T; sc?: S; rate: number };
 
@@ -39,11 +42,12 @@ function summarize<T extends { paidMinutes: number }, S extends { paidMinutes: n
 export default async function MePage({ searchParams }: PageProps<"/me">) {
   const user = await requireUser();
   const emp = await getEmployeeForUser(user.id);
+  const [t, locale, labels] = await Promise.all([getTranslations(), getLocale(), getDayLabels()]);
   if (!emp) {
     return (
       <div className="max-w-xl space-y-2">
-        <h1 className="page-title">My schedule</h1>
-        <p className="text-sm text-gray-500">Your login is not linked to an employee record.</p>
+        <h1 className="page-title">{t("me.title")}</h1>
+        <p className="text-sm text-gray-500">{t("me.notLinked")}</p>
       </div>
     );
   }
@@ -58,13 +62,13 @@ export default async function MePage({ searchParams }: PageProps<"/me">) {
 
   const [dept, schedule, timesheet, rates, templates, advances] = await Promise.all([
     db.query.departments.findFirst({ where: eq(departments.id, emp.departmentId) }),
-    loadSchedule([emp.id], rangeFrom, rangeTo),
+    loadPublishedSchedule([emp.id], rangeFrom, rangeTo),
     loadTimesheet([emp.id], rangeFrom, rangeTo),
     loadRates([emp.id]),
     loadShiftTemplates(),
     loadAdvances({ employeeIds: [emp.id] }),
   ]);
-  const legend = (id: string | null | undefined) => templates.find((t) => t.id === id);
+  const legend = (id: string | null | undefined) => templates.find((tpl) => tpl.id === id);
 
   const { days, approvedMinutes, plannedMinutes, earnedCents, projectedCents } = summarize(dateRange(from, to), (d) => ({
     ts: timesheet.get(key(emp.id, d)),
@@ -79,7 +83,7 @@ export default async function MePage({ searchParams }: PageProps<"/me">) {
   return (
     <div className="max-w-2xl space-y-5">
       <div>
-        <h1 className="page-title">Hello, {emp.firstName}</h1>
+        <h1 className="page-title">{t("me.hello", { name: emp.firstName })}</h1>
         <p className="text-sm text-gray-500">
           {dept?.name}
           {emp.position ? ` · ${emp.position}` : ""}
@@ -87,7 +91,7 @@ export default async function MePage({ searchParams }: PageProps<"/me">) {
             <>
               {" · "}
               <Link href="/me/department" className="text-blue-700 hover:underline">
-                Department schedule
+                {t("me.departmentSchedule")}
               </Link>
             </>
           )}
@@ -95,19 +99,19 @@ export default async function MePage({ searchParams }: PageProps<"/me">) {
       </div>
 
       <section className="card">
-        <h2 className="mb-2 text-sm font-medium">Next 7 days</h2>
+        <h2 className="mb-2 text-sm font-medium">{t("me.next7")}</h2>
         <ul className="divide-y divide-gray-100">
           {upcoming.map(({ date, sc }) => {
-            const t = legend(sc?.shiftTemplateId);
+            const tpl = legend(sc?.shiftTemplateId);
             return (
               <li key={date} className={`flex items-center gap-3 py-2 text-sm ${date === today ? "font-semibold" : ""}`}>
-                <span className="w-24 shrink-0 text-gray-600">{date === today ? "Today" : dayLabel(date)}</span>
-                {sc && sc.kind === "shift" && t && (
-                  <span className="rounded px-1.5 py-0.5 text-xs font-semibold text-white" style={{ background: t.color }}>
-                    {t.code}
+                <span className="w-24 shrink-0 text-gray-600">{date === today ? t("common.today") : dayLabel(date, locale)}</span>
+                {sc && sc.kind === "shift" && tpl && (
+                  <span className="rounded px-1.5 py-0.5 text-xs font-semibold text-white" style={{ background: tpl.color }}>
+                    {tpl.code}
                   </span>
                 )}
-                <span>{sc && sc.kind !== "none" ? describeDay(sc) : <span className="text-gray-400">not planned yet</span>}</span>
+                <span>{sc && sc.kind !== "none" ? describeDay(sc, labels) : <span className="text-gray-400">{t("me.notPlanned")}</span>}</span>
               </li>
             );
           })}
@@ -115,61 +119,61 @@ export default async function MePage({ searchParams }: PageProps<"/me">) {
       </section>
 
       <div className="flex items-center justify-between">
-        <PeriodNav label={monthLabel(month)} prev={href("/me", { month: addMonths(month, -1) })} next={href("/me", { month: addMonths(month, 1) })} />
+        <PeriodNav label={monthLabel(month, locale)} prev={href("/me", { month: addMonths(month, -1) })} next={href("/me", { month: addMonths(month, 1) })} />
       </div>
 
       <section className="grid grid-cols-2 gap-3">
         <div className="card">
-          <div className="text-xs text-gray-500">Approved hours</div>
+          <div className="text-xs text-gray-500">{t("me.approvedHours")}</div>
           <div className="text-2xl font-semibold tabular-nums">{formatHours(approvedMinutes)}</div>
-          <div className="text-xs text-gray-500">+ {formatHours(plannedMinutes)} h still planned</div>
+          <div className="text-xs text-gray-500">{t("me.stillPlanned", { hours: formatHours(plannedMinutes) })}</div>
         </div>
         <div className="card">
-          <div className="text-xs text-gray-500">Estimated pay (gross)</div>
+          <div className="text-xs text-gray-500">{t("me.estimatedPay")}</div>
           <div className="text-2xl font-semibold tabular-nums">{formatEur(projectedCents)}</div>
-          <div className="text-xs text-gray-500">{formatEur(earnedCents)} earned so far</div>
+          <div className="text-xs text-gray-500">{t("me.earned", { amount: formatEur(earnedCents) })}</div>
         </div>
         <div className="card">
-          <div className="text-xs text-gray-500">Advances approved</div>
+          <div className="text-xs text-gray-500">{t("me.advancesApproved")}</div>
           <div className="text-2xl font-semibold tabular-nums">{formatEur(advancesCents)}</div>
         </div>
         <div className="card">
-          <div className="text-xs text-gray-500">Expected rest (gross)</div>
+          <div className="text-xs text-gray-500">{t("me.expectedRest")}</div>
           <div className="text-2xl font-semibold tabular-nums">{formatEur(Math.max(0, projectedCents - advancesCents))}</div>
         </div>
         <p className="col-span-2 text-xs text-gray-500">
-          Estimate only: hours × your hourly rate, before taxes and contributions. The final salary is calculated by accounting.
+          {t("me.estimateNote")}
         </p>
       </section>
 
       <section className="card">
-        <h2 className="mb-2 text-sm font-medium">Days in {monthLabel(month)}</h2>
+        <h2 className="mb-2 text-sm font-medium">{t("me.daysIn", { month: monthLabel(month, locale) })}</h2>
         <ul className="divide-y divide-gray-100 text-sm">
           {days
             .filter(({ ts, sc }) => ts || (sc && sc.kind !== "none"))
             .map(({ date, ts, sc }) => (
               <li key={date} className="flex flex-wrap items-center gap-x-3 py-2">
-                <span className={`w-24 shrink-0 ${date === today ? "font-semibold" : "text-gray-600"}`}>{dayLabel(date)}</span>
-                <span className="flex-1">{describeDay(ts ?? sc)}</span>
-                {ts ? <span className="badge bg-green-100 text-green-800">approved</span> : <span className="badge">planned</span>}
+                <span className={`w-24 shrink-0 ${date === today ? "font-semibold" : "text-gray-600"}`}>{dayLabel(date, locale)}</span>
+                <span className="flex-1">{describeDay(ts ?? sc, labels)}</span>
+                {ts ? <span className="badge bg-green-100 text-green-800">{t("common.approved")}</span> : <span className="badge">{t("me.plannedBadge")}</span>}
               </li>
             ))}
-          {days.every(({ ts, sc }) => !ts && (!sc || sc.kind === "none")) && <li className="py-2 text-gray-500">Nothing planned this month yet.</li>}
+          {days.every(({ ts, sc }) => !ts && (!sc || sc.kind === "none")) && <li className="py-2 text-gray-500">{t("me.nothingThisMonth")}</li>}
         </ul>
       </section>
 
       <section className="card space-y-3">
-        <h2 className="text-sm font-medium">Salary advance</h2>
+        <h2 className="text-sm font-medium">{t("me.advanceTitle")}</h2>
         <ActionForm action={requestOwnAdvance} resetOnSuccess className="flex flex-wrap items-end gap-2">
           <div>
-            <label className="label">Amount (€)</label>
+            <label className="label">{t("common.amountEur")}</label>
             <input name="amount" className="input w-28" inputMode="decimal" required />
           </div>
           <div className="min-w-40 flex-1">
-            <label className="label">Note (optional)</label>
+            <label className="label">{t("common.noteOptional")}</label>
             <input name="note" className="input" />
           </div>
-          <SubmitButton>Request</SubmitButton>
+          <SubmitButton>{t("me.request")}</SubmitButton>
         </ActionForm>
         {advances.length > 0 && (
           <ul className="divide-y divide-gray-100 text-sm">
@@ -182,7 +186,7 @@ export default async function MePage({ searchParams }: PageProps<"/me">) {
                     a.decision === "approved" ? "bg-green-100 text-green-800" : a.decision === "rejected" ? "bg-red-100 text-red-800" : "bg-amber-100 text-amber-800"
                   }`}
                 >
-                  {a.decision ?? "waiting"}
+                  {a.decision ? t(a.decision === "approved" ? "decision.approved" : "decision.rejected") : t("common.waiting")}
                 </span>
               </li>
             ))}

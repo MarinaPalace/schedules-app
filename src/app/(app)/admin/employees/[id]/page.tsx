@@ -9,9 +9,11 @@ import { formatEur } from "@/lib/money";
 import { formatDate, formatDateTime, todayISO } from "@/lib/dates";
 import { ActionForm, SubmitButton } from "@/components/action-form";
 import { addRate, createEmployeeLogin, resetPassword, updateEmployee } from "../actions";
+import { getTranslations } from "next-intl/server";
 
 export default async function EmployeePage({ params }: PageProps<"/admin/employees/[id]">) {
   await requireUser(["admin", "top_manager"]);
+  const t = await getTranslations();
   const { id } = await params;
   if (!z.uuid().safeParse(id).success) notFound();
 
@@ -31,68 +33,68 @@ export default async function EmployeePage({ params }: PageProps<"/admin/employe
   return (
     <div className="max-w-3xl space-y-6">
       <div>
-        <Link href="/admin/employees" className="text-sm text-blue-700 hover:underline">← Employees</Link>
+        <Link href="/admin/employees" className="text-sm text-blue-700 hover:underline">{t("employees.back")}</Link>
         <h1 className="page-title mt-1">
           {emp.firstName} {emp.lastName}
         </h1>
       </div>
 
       <section className="card">
-        <h2 className="mb-3 font-medium">Details</h2>
+        <h2 className="mb-3 font-medium">{t("employees.details")}</h2>
         <ActionForm action={updateEmployee} className="grid gap-3 sm:grid-cols-2">
           <input type="hidden" name="id" value={emp.id} />
           <div>
-            <label className="label">First name</label>
+            <label className="label">{t("common.firstName")}</label>
             <input name="firstName" defaultValue={emp.firstName} className="input" required />
           </div>
           <div>
-            <label className="label">Last name</label>
+            <label className="label">{t("common.lastName")}</label>
             <input name="lastName" defaultValue={emp.lastName} className="input" required />
           </div>
           <div>
-            <label className="label">Department</label>
+            <label className="label">{t("common.department")}</label>
             <select name="departmentId" defaultValue={emp.departmentId} className="input">
               {deps.map((d) => (
                 <option key={d.id} value={d.id}>
                   {d.name}
-                  {d.active ? "" : " (inactive)"}
+                  {d.active ? "" : ` (${t("common.inactive")})`}
                 </option>
               ))}
             </select>
           </div>
           <div>
-            <label className="label">Position</label>
+            <label className="label">{t("common.position")}</label>
             <input name="position" defaultValue={emp.position ?? ""} className="input" />
           </div>
           <div>
-            <label className="label">Employee no.</label>
+            <label className="label">{t("common.employeeNo")}</label>
             <input name="employeeNo" defaultValue={emp.employeeNo ?? ""} className="input" />
           </div>
           <div className="flex flex-col justify-end gap-2 pb-1 text-sm">
             <label className="flex items-center gap-2">
-              <input type="checkbox" name="canViewDepartment" defaultChecked={emp.canViewDepartment} /> Can see department schedule
+              <input type="checkbox" name="canViewDepartment" defaultChecked={emp.canViewDepartment} /> {t("employees.canViewDepartment")}
             </label>
             <label className="flex items-center gap-2">
-              <input type="checkbox" name="active" defaultChecked={emp.active} /> Active (unticking also blocks login)
+              <input type="checkbox" name="active" defaultChecked={emp.active} /> {t("employees.activeBlocksLogin")}
             </label>
           </div>
           <div className="sm:col-span-2">
-            <SubmitButton>Save</SubmitButton>
+            <SubmitButton>{t("common.save")}</SubmitButton>
           </div>
         </ActionForm>
       </section>
 
       <section className="card">
-        <h2 className="mb-3 font-medium">Hourly rate history</h2>
+        <h2 className="mb-3 font-medium">{t("employees.rateHistory")}</h2>
         <p className="mb-3 text-sm text-gray-500">
-          Rates are never overwritten. Add a new rate with the date it starts; past months keep their old rate.
+          {t("employees.rateHistoryHelp")}
         </p>
         <table className="table mb-4">
           <thead>
             <tr>
-              <th>From</th>
-              <th className="text-right">Rate / h</th>
-              <th>Entered</th>
+              <th>{t("employees.from")}</th>
+              <th className="text-right">{t("employees.ratePerHour")}</th>
+              <th>{t("employees.entered")}</th>
             </tr>
           </thead>
           <tbody>
@@ -108,46 +110,46 @@ export default async function EmployeePage({ params }: PageProps<"/admin/employe
         <ActionForm action={addRate} resetOnSuccess className="flex flex-wrap items-end gap-2">
           <input type="hidden" name="employeeId" value={emp.id} />
           <div>
-            <label className="label">New rate (€ / h)</label>
+            <label className="label">{t("employees.newRate")}</label>
             <input name="hourlyRate" className="input w-32" inputMode="decimal" required />
           </div>
           <div>
-            <label className="label">From</label>
+            <label className="label">{t("employees.from")}</label>
             <input name="effectiveFrom" type="date" className="input" defaultValue={todayISO()} required />
           </div>
-          <SubmitButton className="btn">Add rate</SubmitButton>
+          <SubmitButton className="btn">{t("employees.addRate")}</SubmitButton>
         </ActionForm>
       </section>
 
       <section className="card">
-        <h2 className="mb-3 font-medium">App login</h2>
+        <h2 className="mb-3 font-medium">{t("employees.appLogin")}</h2>
         {login ? (
           <div className="space-y-3">
             <p className="text-sm">
-              Username: <span className="font-mono">{login.username}</span>
-              {!login.active && <span className="badge ml-2">blocked</span>}
+              {t("common.username")}: <span className="font-mono">{login.username}</span>
+              {!login.active && <span className="badge ml-2">{t("employees.blocked")}</span>}
             </p>
             <ActionForm action={resetPassword} resetOnSuccess className="flex flex-wrap items-end gap-2">
               <input type="hidden" name="userId" value={login.id} />
               <div>
-                <label className="label">New password</label>
+                <label className="label">{t("common.newPassword")}</label>
                 <input name="password" className="input" autoComplete="new-password" required minLength={6} />
               </div>
-              <SubmitButton className="btn">Reset password</SubmitButton>
+              <SubmitButton className="btn">{t("common.resetPassword")}</SubmitButton>
             </ActionForm>
           </div>
         ) : (
           <ActionForm action={createEmployeeLogin} className="flex flex-wrap items-end gap-2">
             <input type="hidden" name="employeeId" value={emp.id} />
             <div>
-              <label className="label">Username</label>
+              <label className="label">{t("common.username")}</label>
               <input name="username" className="input" autoCapitalize="none" required />
             </div>
             <div>
-              <label className="label">Password</label>
+              <label className="label">{t("common.password")}</label>
               <input name="password" className="input" autoComplete="new-password" required minLength={6} />
             </div>
-            <SubmitButton className="btn">Create login</SubmitButton>
+            <SubmitButton className="btn">{t("employees.createLogin")}</SubmitButton>
           </ActionForm>
         )}
       </section>

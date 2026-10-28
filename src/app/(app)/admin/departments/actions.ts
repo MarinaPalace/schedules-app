@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { getTranslations } from "next-intl/server";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { departmentManagers, departments, user } from "@/db/schema";
@@ -9,14 +10,15 @@ import { run, type ActionState } from "@/lib/action-state";
 import { assertRole } from "@/lib/session";
 
 const ADMINS = ["admin", "top_manager"] as const;
+const nameSchema = z.string().trim().min(2, "nameTooShort");
 
 export async function createDepartment(_: ActionState, form: FormData): Promise<ActionState> {
   return run(async () => {
     const me = await assertRole(ADMINS);
-    const name = z.string().trim().min(2, "Name is too short").parse(form.get("name"));
+    const name = nameSchema.parse(form.get("name"));
     await withActor(me.id, (tx) => tx.insert(departments).values({ name }));
     revalidatePath("/admin/departments");
-    return `Department "${name}" created`;
+    return (await getTranslations("departments"))("created", { name });
   });
 }
 
@@ -24,7 +26,7 @@ export async function updateDepartment(_: ActionState, form: FormData): Promise<
   return run(async () => {
     const me = await assertRole(ADMINS);
     const id = z.uuid().parse(form.get("id"));
-    const name = z.string().trim().min(2, "Name is too short").parse(form.get("name"));
+    const name = nameSchema.parse(form.get("name"));
     const active = form.get("active") === "on";
     await withActor(me.id, (tx) => tx.update(departments).set({ name, active }).where(eq(departments.id, id)));
     revalidatePath("/admin/departments");
@@ -60,6 +62,6 @@ export async function setDepartmentManagers(_: ActionState, form: FormData): Pro
       }
     });
     revalidatePath("/admin/departments");
-    return "Managers updated";
+    return (await getTranslations("departments"))("managersUpdated");
   });
 }

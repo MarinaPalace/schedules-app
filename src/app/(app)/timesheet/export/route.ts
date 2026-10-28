@@ -1,5 +1,7 @@
+import { getTranslations } from "next-intl/server";
 import { isMonth } from "@/lib/calendar";
 import { ABSENCE_CODES } from "@/lib/codes";
+import { getDayLabels } from "@/lib/day-labels";
 import { buildMonthSheet } from "@/lib/month-sheet";
 import { getCurrentUser, getVisibleDepartments } from "@/lib/session";
 
@@ -17,10 +19,19 @@ export async function GET(request: Request) {
   const dept = (await getVisibleDepartments(user)).find((d) => d.id === deptId);
   if (!dept || !isMonth(month)) return new Response("Not found", { status: 404 });
 
-  const { dates, rows } = await buildMonthSheet(dept.id, month);
-  const header = ["No.", "Name", "Position", ...dates.map((d) => d.slice(8)), "Approved hours", "Not approved hours", ...ABSENCE_CODES.map((a) => a.code)];
+  const [t, labels] = await Promise.all([getTranslations(), getDayLabels()]);
+  const { dates, rows } = await buildMonthSheet(dept.id, month, labels, (text) => text);
+  const header = [
+    t("common.employeeNo"),
+    t("common.name"),
+    t("common.position"),
+    ...dates.map((d) => d.slice(8)),
+    t("timesheet.approvedH"),
+    t("timesheet.notApprovedH"),
+    ...ABSENCE_CODES,
+  ];
   const lines = [
-    [`Forma 76 – ${dept.name} – ${month}`],
+    [`${t("timesheet.title")} – ${dept.name} – ${month}`],
     header,
     ...rows.map((r) => [
       r.employeeNo ?? "",
@@ -29,7 +40,7 @@ export async function GET(request: Request) {
       ...r.cells.map((c) => (c.approved ? c.text.replace(".", ",") : c.text ? `(${c.text.replace(".", ",")})` : "")),
       num(r.approvedMinutes),
       num(r.plannedMinutes),
-      ...ABSENCE_CODES.map((a) => String(r.absences[a.code] || "")),
+      ...ABSENCE_CODES.map((code) => String(r.absences[code] || "")),
     ]),
   ];
   const csv = "﻿" + lines.map((l) => l.map(cell).join(SEP)).join("\r\n");

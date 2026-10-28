@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { account, user } from "@/db/schema";
 import type { Tx } from "@/lib/actor";
 import type { Role } from "@/lib/session";
+import { AppError } from "@/lib/app-error";
 
 export const USERNAME_RE = /^[a-z0-9._-]{3,40}$/;
 
@@ -21,11 +22,11 @@ export async function createLogin(
 ): Promise<string> {
   const username = normalizeUsername(input.username);
   if (!USERNAME_RE.test(username)) {
-    throw new Error("Username: 3–40 characters, letters, digits, dot, dash or underscore");
+    throw new AppError("usernameFormat");
   }
-  if (input.password.length < 6) throw new Error("Password must be at least 6 characters");
+  if (input.password.length < 6) throw new AppError("passwordShort");
   const existing = await tx.query.user.findFirst({ where: eq(user.username, username) });
-  if (existing) throw new Error(`Username "${username}" is already taken`);
+  if (existing) throw new AppError("usernameTaken", { username });
 
   const id = crypto.randomUUID();
   await tx.insert(user).values({
@@ -47,7 +48,7 @@ export async function createLogin(
 }
 
 export async function setPassword(tx: Tx, userId: string, password: string): Promise<void> {
-  if (password.length < 6) throw new Error("Password must be at least 6 characters");
+  if (password.length < 6) throw new AppError("passwordShort");
   await tx
     .update(account)
     .set({ password: await hashPassword(password), updatedAt: new Date() })

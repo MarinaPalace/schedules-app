@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { getTranslations } from "next-intl/server";
 
 type Option = { value: string; label: string };
 
@@ -31,15 +32,16 @@ export function LinkTabs({
   );
 }
 
-export function PeriodNav({ label, prev, next, today }: { label: string; prev: string; next: string; today?: string }) {
+export async function PeriodNav({ label, prev, next, today }: { label: string; prev: string; next: string; today?: string }) {
+  const t = await getTranslations("common");
   return (
     <div className="inline-flex items-center gap-1">
-      <Link href={prev} className="btn btn-sm" aria-label="Previous">←</Link>
+      <Link href={prev} className="btn btn-sm" aria-label={t("previous")}>←</Link>
       <span className="min-w-36 text-center text-sm font-medium">{label}</span>
-      <Link href={next} className="btn btn-sm" aria-label="Next">→</Link>
+      <Link href={next} className="btn btn-sm" aria-label={t("next")}>→</Link>
       {today && (
         <Link href={today} className="btn btn-sm">
-          Today
+          {t("today")}
         </Link>
       )}
     </div>

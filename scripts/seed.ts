@@ -145,6 +145,8 @@ async function main() {
       }
     }
     await tx.insert(s.scheduleEntries).values(scheduleRows);
+    // Publish the demo month so employees can see it.
+    await tx.insert(s.schedulePublications).values([fo, hk, fb].map((d) => ({ departmentId: d.id, fromDate: from, toDate: to, createdBy: mFo })));
     if (timesheetRows.length) await tx.insert(s.timesheetEntries).values(timesheetRows);
 
     await tx.insert(s.budgets).values([
