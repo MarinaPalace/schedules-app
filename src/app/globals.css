@@ -5,11 +5,15 @@
  * "surface" colour for cards. Dark mode re-maps those variables, so every screen
  * follows without per-element dark: classes. Shift colours and white text stay as they are.
  */
-:root {
-  --background: #f4f5f7;
-  --foreground: #111827;
-  --surface: #ffffff;
-  color-scheme: light;
+/* Light defaults live in the theme layer, so the dark rules below always win
+   (whether they end up layered or not) – dark selectors are also more specific. */
+@layer theme {
+  :root {
+    --background: #f4f5f7;
+    --foreground: #111827;
+    --surface: #ffffff;
+    color-scheme: light;
+  }
 }
 
 @theme inline {
@@ -20,7 +24,7 @@
   --font-mono: var(--font-geist-mono);
 }
 
-/* Unlayered on purpose: must beat Tailwind's layered theme variables and the :root defaults above. */
+/* Unlayered: beats Tailwind's layered theme variables and the light defaults above. */
 :root.dark {
   color-scheme: dark;
   --background: #0e1014;
