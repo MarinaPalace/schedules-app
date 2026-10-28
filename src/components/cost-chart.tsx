@@ -18,16 +18,16 @@ export function CostChart({ data, todayDay }: { data: CostPoint[]; todayDay: str
     <div className="h-72 w-full">
       <ResponsiveContainer>
         <LineChart data={data} margin={{ top: 8, right: 16, bottom: 0, left: 8 }}>
-          <CartesianGrid stroke="#eef0f3" vertical={false} />
-          <XAxis dataKey="day" tick={{ fontSize: 11, fill: "#6b7280" }} tickLine={false} axisLine={{ stroke: "#e5e7eb" }} interval="preserveStartEnd" />
-          <YAxis tickFormatter={eur} tick={{ fontSize: 11, fill: "#6b7280" }} tickLine={false} axisLine={false} width={80} />
+          <CartesianGrid stroke="#8b919c" strokeOpacity={0.2} vertical={false} />
+          <XAxis dataKey="day" tick={{ fontSize: 11, fill: "#8b919c" }} tickLine={false} axisLine={{ stroke: "#8b919c", strokeOpacity: 0.3 }} interval="preserveStartEnd" />
+          <YAxis tickFormatter={eur} tick={{ fontSize: 11, fill: "#8b919c" }} tickLine={false} axisLine={false} width={80} />
           <Tooltip
             formatter={(v, name) => [typeof v === "number" ? eur(v) : "—", name]}
             labelFormatter={(l) => t("day", { day: String(l) })}
-            contentStyle={{ fontSize: 12, borderRadius: 8, borderColor: "#e5e7eb" }}
+            contentStyle={{ fontSize: 12, borderRadius: 8, borderColor: "var(--color-gray-200)", background: "var(--surface)", color: "var(--foreground)" }}
           />
           <Legend wrapperStyle={{ fontSize: 12 }} iconType="plainline" />
-          {todayDay && <ReferenceLine x={todayDay} stroke="#d1d5db" label={{ value: t("today"), fontSize: 10, fill: "#6b7280", position: "insideTopRight" }} />}
+          {todayDay && <ReferenceLine x={todayDay} stroke="#8b919c" strokeOpacity={0.5} label={{ value: t("today"), fontSize: 10, fill: "#8b919c", position: "insideTopRight" }} />}
           <Line name={t("budgetPace")} dataKey="budget" stroke={REFERENCE} strokeWidth={2} strokeDasharray="2 4" dot={false} isAnimationActive={false} />
           <Line name={t("projected")} dataKey="projected" stroke={PROJECTED} strokeWidth={2} strokeDasharray="6 4" dot={false} activeDot={{ r: 4 }} isAnimationActive={false} />
           <Line name={t("actual")} dataKey="actual" stroke={ACTUAL} strokeWidth={2} dot={false} activeDot={{ r: 4 }} connectNulls={false} isAnimationActive={false} />

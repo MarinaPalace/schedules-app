@@ -53,6 +53,7 @@ export const employees = pgTable("employees", {
   firstName: text("first_name").notNull(),
   lastName: text("last_name").notNull(),
   position: text("position"),
+  phone: text("phone"),
   departmentId: uuid("department_id")
     .notNull()
     .references(() => departments.id),

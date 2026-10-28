@@ -1,18 +1,19 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { asc, desc, eq } from "drizzle-orm";
+import { asc, desc, eq, isNull } from "drizzle-orm";
+import { getTranslations } from "next-intl/server";
 import { z } from "zod";
 import { db } from "@/db/client";
 import { departments, employeeRates, employees, user } from "@/db/schema";
-import { requireUser } from "@/lib/session";
+import { assignableRoles, PEOPLE_ADMINS, requireUser, type Role } from "@/lib/session";
 import { formatEur } from "@/lib/money";
 import { formatDate, formatDateTime, todayISO } from "@/lib/dates";
 import { ActionForm, SubmitButton } from "@/components/action-form";
-import { addRate, createEmployeeLogin, resetPassword, updateEmployee } from "../actions";
-import { getTranslations } from "next-intl/server";
+import { RoleSelect } from "@/components/role-select";
+import { addRate, createEmployeeLogin, linkExistingLogin, resetPassword, updateEmployee } from "../actions";
 
 export default async function EmployeePage({ params }: PageProps<"/admin/employees/[id]">) {
-  await requireUser(["admin", "top_manager"]);
+  const me = await requireUser(PEOPLE_ADMINS);
   const t = await getTranslations();
   const { id } = await params;
   if (!z.uuid().safeParse(id).success) notFound();
@@ -20,7 +21,8 @@ export default async function EmployeePage({ params }: PageProps<"/admin/employe
   const emp = await db.query.employees.findFirst({ where: eq(employees.id, id) });
   if (!emp) notFound();
 
-  const [deps, rates, login] = await Promise.all([
+  const roles = assignableRoles(me);
+  const [deps, rates, login, freeLogins] = await Promise.all([
     db.select().from(departments).orderBy(asc(departments.name)),
     db
       .select()
@@ -28,7 +30,18 @@ export default async function EmployeePage({ params }: PageProps<"/admin/employe
       .where(eq(employeeRates.employeeId, id))
       .orderBy(desc(employeeRates.effectiveFrom), desc(employeeRates.createdAt)),
     emp.userId ? db.query.user.findFirst({ where: eq(user.id, emp.userId) }) : null,
+    // Logins that are not an employee yet (e.g. managers created under "Users & roles").
+    emp.userId
+      ? []
+      : db
+          .select({ id: user.id, name: user.name, username: user.username, role: user.role })
+          .from(user)
+          .leftJoin(employees, eq(employees.userId, user.id))
+          .where(isNull(employees.id))
+          .orderBy(asc(user.name)),
   ]);
+  const canManageLogin = !login || roles.includes(login.role as Role);
+  const linkable = freeLogins.filter((u) => roles.includes(u.role as Role));
 
   return (
     <div className="max-w-3xl space-y-6">
@@ -67,9 +80,23 @@ export default async function EmployeePage({ params }: PageProps<"/admin/employe
             <input name="position" defaultValue={emp.position ?? ""} className="input" />
           </div>
           <div>
+            <label className="label">{t("employees.phone")}</label>
+            <input name="phone" type="tel" defaultValue={emp.phone ?? ""} className="input" />
+          </div>
+          <div>
             <label className="label">{t("common.employeeNo")}</label>
             <input name="employeeNo" defaultValue={emp.employeeNo ?? ""} className="input" />
           </div>
+          {login && (
+            <div>
+              <label className="label">{t("common.role")}</label>
+              {canManageLogin ? (
+                <RoleSelect roles={roles} value={login.role} t={t} />
+              ) : (
+                <div className="input bg-gray-50">{t(`roles.${login.role as Role}`)}</div>
+              )}
+            </div>
+          )}
           <div className="flex flex-col justify-end gap-2 pb-1 text-sm">
             <label className="flex items-center gap-2">
               <input type="checkbox" name="canViewDepartment" defaultChecked={emp.canViewDepartment} /> {t("employees.canViewDepartment")}
@@ -86,9 +113,7 @@ export default async function EmployeePage({ params }: PageProps<"/admin/employe
 
       <section className="card">
         <h2 className="mb-3 font-medium">{t("employees.rateHistory")}</h2>
-        <p className="mb-3 text-sm text-gray-500">
-          {t("employees.rateHistoryHelp")}
-        </p>
+        <p className="mb-3 text-sm text-gray-500">{t("employees.rateHistoryHelp")}</p>
         <table className="table mb-4">
           <thead>
             <tr>
@@ -121,36 +146,61 @@ export default async function EmployeePage({ params }: PageProps<"/admin/employe
         </ActionForm>
       </section>
 
-      <section className="card">
-        <h2 className="mb-3 font-medium">{t("employees.appLogin")}</h2>
+      <section className="card space-y-4">
+        <h2 className="font-medium">{t("employees.appLogin")}</h2>
         {login ? (
           <div className="space-y-3">
             <p className="text-sm">
               {t("common.username")}: <span className="font-mono">{login.username}</span>
               {!login.active && <span className="badge ml-2">{t("employees.blocked")}</span>}
             </p>
-            <ActionForm action={resetPassword} resetOnSuccess className="flex flex-wrap items-end gap-2">
-              <input type="hidden" name="userId" value={login.id} />
-              <div>
-                <label className="label">{t("common.newPassword")}</label>
-                <input name="password" className="input" autoComplete="new-password" required minLength={6} />
-              </div>
-              <SubmitButton className="btn">{t("common.resetPassword")}</SubmitButton>
-            </ActionForm>
+            {canManageLogin && (
+              <ActionForm action={resetPassword} resetOnSuccess className="flex flex-wrap items-end gap-2">
+                <input type="hidden" name="userId" value={login.id} />
+                <div>
+                  <label className="label">{t("common.newPassword")}</label>
+                  <input name="password" className="input" autoComplete="new-password" required minLength={6} />
+                </div>
+                <SubmitButton className="btn">{t("common.resetPassword")}</SubmitButton>
+              </ActionForm>
+            )}
           </div>
         ) : (
-          <ActionForm action={createEmployeeLogin} className="flex flex-wrap items-end gap-2">
-            <input type="hidden" name="employeeId" value={emp.id} />
-            <div>
-              <label className="label">{t("common.username")}</label>
-              <input name="username" className="input" autoCapitalize="none" required />
-            </div>
-            <div>
-              <label className="label">{t("common.password")}</label>
-              <input name="password" className="input" autoComplete="new-password" required minLength={6} />
-            </div>
-            <SubmitButton className="btn">{t("employees.createLogin")}</SubmitButton>
-          </ActionForm>
+          <>
+            <ActionForm action={createEmployeeLogin} className="grid gap-2 sm:grid-cols-[1fr_1fr_1fr_auto] sm:items-end">
+              <input type="hidden" name="employeeId" value={emp.id} />
+              <div>
+                <label className="label">{t("common.username")}</label>
+                <input name="username" className="input" autoCapitalize="none" required />
+              </div>
+              <div>
+                <label className="label">{t("common.password")}</label>
+                <input name="password" className="input" autoComplete="new-password" required minLength={6} />
+              </div>
+              <div>
+                <label className="label">{t("common.role")}</label>
+                <RoleSelect roles={roles} t={t} />
+              </div>
+              <SubmitButton className="btn">{t("employees.createLogin")}</SubmitButton>
+            </ActionForm>
+            {linkable.length > 0 && (
+              <ActionForm action={linkExistingLogin} className="flex flex-wrap items-end gap-2 border-t border-gray-100 pt-4">
+                <input type="hidden" name="employeeId" value={emp.id} />
+                <div className="min-w-56 flex-1">
+                  <label className="label">{t("employees.linkExisting")}</label>
+                  <select name="userId" className="input" required defaultValue="">
+                    <option value="" disabled>{t("common.choose")}</option>
+                    {linkable.map((u) => (
+                      <option key={u.id} value={u.id}>
+                        {u.name} ({u.username}) – {t(`roles.${u.role as Role}`)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <SubmitButton className="btn">{t("employees.linkLogin")}</SubmitButton>
+              </ActionForm>
+            )}
+          </>
         )}
       </section>
     </div>

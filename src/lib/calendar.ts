@@ -16,6 +16,11 @@ export function isMonth(s: unknown): s is string {
   return typeof s === "string" && /^\d{4}-(0[1-9]|1[0-2])$/.test(s);
 }
 
+/** Whole days from `a` to `b` (positive when b is later). */
+export function daysBetween(a: string, b: string): number {
+  return Math.round((toDate(b).getTime() - toDate(a).getTime()) / 86_400_000);
+}
+
 export function addDays(iso: string, n: number): string {
   const d = toDate(iso);
   d.setUTCDate(d.getUTCDate() + n);

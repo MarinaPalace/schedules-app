@@ -1,43 +1,137 @@
 @import "tailwindcss";
 
+/*
+ * Colours. The app is written with Tailwind's gray/blue/green/amber/red scales and a
+ * "surface" colour for cards. Dark mode re-maps those variables, so every screen
+ * follows without per-element dark: classes. Shift colours and white text stay as they are.
+ */
 :root {
-  --background: #f6f7f9;
+  --background: #f4f5f7;
   --foreground: #111827;
+  --surface: #ffffff;
+  color-scheme: light;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+}
+
+/* Unlayered on purpose: must beat Tailwind's layered theme variables and the :root defaults above. */
+:root.dark {
+  color-scheme: dark;
+  --background: #0e1014;
+  --foreground: #e8eaee;
+  --surface: #171a20;
+  --color-gray-50: #1c1f26;
+  --color-gray-100: #242832;
+  --color-gray-200: #2e333d;
+  --color-gray-300: #3e4450;
+  --color-gray-400: #6b7280;
+  --color-gray-500: #9aa1ad;
+  --color-gray-600: #b5bbc5;
+  --color-gray-700: #cfd4dc;
+  --color-gray-800: #e2e5ea;
+  --color-gray-900: #f2f4f6;
+  --color-blue-50: #16233a;
+  --color-blue-100: #1c3152;
+  --color-blue-200: #27466f;
+  --color-blue-300: #345c93;
+  --color-blue-700: #8ab8ff;
+  --color-green-50: #11261a;
+  --color-green-100: #163322;
+  --color-green-200: #1f4a31;
+  --color-green-600: #4ade80;
+  --color-green-700: #74e3a2;
+  --color-green-800: #9cf0bd;
+  --color-amber-50: #2a2010;
+  --color-amber-100: #3a2c11;
+  --color-amber-200: #5a4416;
+  --color-amber-700: #f7c04a;
+  --color-amber-800: #fbd36b;
+  --color-amber-900: #fde59a;
+  --color-red-50: #2b1416;
+  --color-red-100: #3c1b1d;
+  --color-red-200: #5a2629;
+  --color-red-300: #7a3135;
+  --color-red-600: #f87171;
+  --color-red-700: #fca5a5;
+  --color-red-800: #fecaca;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not(.light) {
+    color-scheme: dark;
+    --background: #0e1014;
+    --foreground: #e8eaee;
+    --surface: #171a20;
+    --color-gray-50: #1c1f26;
+    --color-gray-100: #242832;
+    --color-gray-200: #2e333d;
+    --color-gray-300: #3e4450;
+    --color-gray-400: #6b7280;
+    --color-gray-500: #9aa1ad;
+    --color-gray-600: #b5bbc5;
+    --color-gray-700: #cfd4dc;
+    --color-gray-800: #e2e5ea;
+    --color-gray-900: #f2f4f6;
+    --color-blue-50: #16233a;
+    --color-blue-100: #1c3152;
+    --color-blue-200: #27466f;
+    --color-blue-300: #345c93;
+    --color-blue-700: #8ab8ff;
+    --color-green-50: #11261a;
+    --color-green-100: #163322;
+    --color-green-200: #1f4a31;
+    --color-green-600: #4ade80;
+    --color-green-700: #74e3a2;
+    --color-green-800: #9cf0bd;
+    --color-amber-50: #2a2010;
+    --color-amber-100: #3a2c11;
+    --color-amber-200: #5a4416;
+    --color-amber-700: #f7c04a;
+    --color-amber-800: #fbd36b;
+    --color-amber-900: #fde59a;
+    --color-red-50: #2b1416;
+    --color-red-100: #3c1b1d;
+    --color-red-200: #5a2629;
+    --color-red-300: #7a3135;
+    --color-red-600: #f87171;
+    --color-red-700: #fca5a5;
+    --color-red-800: #fecaca;
+  }
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
+  -webkit-tap-highlight-color: transparent;
 }
 
 @layer components {
   .card {
-    @apply rounded-xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5;
+    @apply rounded-2xl border border-gray-200 bg-surface p-4 shadow-sm sm:p-5;
   }
   .label {
     @apply mb-1 block text-xs font-medium text-gray-600;
   }
+  /* 16px text on phones stops iOS from zooming into inputs; 44px tall = easy to tap. */
   .input {
-    @apply w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:bg-gray-100;
+    @apply min-h-11 w-full rounded-lg border border-gray-300 bg-surface px-3 py-2 text-base text-gray-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 disabled:bg-gray-100 sm:min-h-0 sm:text-sm;
   }
   .btn {
-    @apply inline-flex items-center justify-center gap-1 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50;
+    @apply inline-flex min-h-11 items-center justify-center gap-1 rounded-lg border border-gray-300 bg-surface px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 active:bg-gray-100 disabled:opacity-50 sm:min-h-0;
   }
   .btn-primary {
-    @apply border-blue-600 bg-blue-600 text-white hover:bg-blue-700;
+    @apply border-blue-600 bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-700;
   }
   .btn-danger {
     @apply border-red-200 text-red-700 hover:bg-red-50;
   }
   .btn-sm {
-    @apply px-2 py-1 text-xs;
+    @apply min-h-9 px-2.5 py-1 text-xs sm:min-h-0;
   }
   .table {
     @apply w-full text-left text-sm;
@@ -53,5 +147,35 @@ body {
   }
   .page-title {
     @apply text-xl font-semibold text-gray-900;
+  }
+}
+
+/* On phones, tables marked .table-stack become one card-like block per row. */
+@media (max-width: 767px) {
+  .table-stack thead {
+    display: none;
+  }
+  .table-stack,
+  .table-stack tbody,
+  .table-stack tr,
+  .table-stack td {
+    display: block;
+    width: 100%;
+  }
+  .table-stack tr {
+    border-bottom: 1px solid var(--color-gray-200);
+    padding: 0.75rem 0.25rem;
+  }
+  .table-stack td {
+    border: 0;
+    padding: 0.2rem 0.75rem;
+  }
+  .table-stack td[data-label]::before {
+    content: attr(data-label);
+    display: block;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--color-gray-500);
   }
 }

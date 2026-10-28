@@ -11,7 +11,7 @@ export function LanguageSwitcher({ className = "" }: { className?: string }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   return (
-    <div className={`inline-flex overflow-hidden rounded-lg border border-gray-300 bg-white text-xs ${className}`}>
+    <div className={`inline-flex overflow-hidden rounded-lg border border-gray-300 bg-surface text-xs ${className}`}>
       {LOCALES.map((l) => (
         <button
           key={l}

@@ -47,7 +47,7 @@ export default async function TimesheetMonthPage({ searchParams }: PageProps<"/t
         <table className="w-full border-collapse text-xs">
           <thead>
             <tr className="text-gray-500">
-              <th className="sticky left-0 z-10 min-w-40 border-b border-gray-200 bg-white px-3 py-2 text-left font-medium">{t("common.employee")}</th>
+              <th className="sticky left-0 z-10 min-w-40 border-b border-gray-200 bg-surface px-3 py-2 text-left font-medium">{t("common.employee")}</th>
               {dates.map((d) => (
                 <th key={d} className={`min-w-8 border-b border-l border-gray-200 px-1 py-2 text-center font-medium ${isWeekend(d) ? "bg-gray-50" : ""}`}>
                   <Link href={href("/timesheet", { dept: dept.id, date: d })} className="hover:text-blue-700">
@@ -67,7 +67,7 @@ export default async function TimesheetMonthPage({ searchParams }: PageProps<"/t
           <tbody>
             {rows.map((r) => (
               <tr key={r.employeeId}>
-                <td className="sticky left-0 z-10 border-b border-gray-100 bg-white px-3 py-1.5 font-medium whitespace-nowrap">{r.name}</td>
+                <td className="sticky left-0 z-10 border-b border-gray-100 bg-surface px-3 py-1.5 font-medium whitespace-nowrap">{r.name}</td>
                 {r.cells.map((c, i) => (
                   <td
                     key={dates[i]}

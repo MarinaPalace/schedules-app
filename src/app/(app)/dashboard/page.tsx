@@ -72,12 +72,12 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
         <div className="card">
           <div className="text-xs text-gray-500">{t("dashboard.actualApproved")}</div>
           <div className="mt-1 text-2xl font-semibold tabular-nums">{formatEur(total.actualCents)}</div>
-          <div className="text-xs text-gray-500">{formatHours(total.actualMinutes)} h</div>
+          <div className="text-xs text-gray-500">{formatHours(total.actualMinutes)} {t("common.hourUnit")}</div>
         </div>
         <div className="card">
           <div className="text-xs text-gray-500">{t("dashboard.projectedEnd")}</div>
           <div className="mt-1 text-2xl font-semibold tabular-nums">{formatEur(total.projectedCents)}</div>
-          <div className="text-xs text-gray-500">{formatHours(total.projectedMinutes)} h</div>
+          <div className="text-xs text-gray-500">{formatHours(total.projectedMinutes)} {t("common.hourUnit")}</div>
         </div>
         <div className="card">
           <div className="text-xs text-gray-500">{t("common.status")}</div>

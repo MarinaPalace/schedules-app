@@ -2,14 +2,14 @@
 
 import { revalidatePath } from "next/cache";
 import { getTranslations } from "next-intl/server";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { departmentManagers, departments, user } from "@/db/schema";
 import { withActor } from "@/lib/actor";
 import { run, type ActionState } from "@/lib/action-state";
-import { assertRole } from "@/lib/session";
+import { assertRole, PEOPLE_ADMINS } from "@/lib/session";
 
-const ADMINS = ["admin", "top_manager"] as const;
+const ADMINS = PEOPLE_ADMINS;
 const nameSchema = z.string().trim().min(2, "nameTooShort");
 
 export async function createDepartment(_: ActionState, form: FormData): Promise<ActionState> {
@@ -41,7 +41,7 @@ export async function setDepartmentManagers(_: ActionState, form: FormData): Pro
     const wanted = new Set(form.getAll("managerIds").map(String));
 
     await withActor(me.id, async (tx) => {
-      const managers = await tx.select({ id: user.id }).from(user).where(eq(user.role, "manager"));
+      const managers = await tx.select({ id: user.id }).from(user).where(inArray(user.role, ["manager", "top_manager"]));
       const valid = new Set(managers.map((m) => m.id));
       const current = await tx.select().from(departmentManagers).where(eq(departmentManagers.departmentId, departmentId));
 

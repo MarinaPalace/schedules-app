@@ -26,13 +26,13 @@ async function main() {
   );
 
   await withActor(adminId, async (tx) => {
-    const [fo, hk, fb] = await tx
+    const [fo, hk, fb, mg] = await tx
       .insert(s.departments)
-      .values([{ name: "Front Office" }, { name: "Housekeeping" }, { name: "F&B / Bar" }])
+      .values([{ name: "Front Office" }, { name: "Housekeeping" }, { name: "F&B / Bar" }, { name: "Management" }])
       .returning();
 
     await createLogin(tx, { username: "owner", name: "Hotel Owner", password: PASSWORD, role: "owner" });
-    await createLogin(tx, { username: "topmanager", name: "General Manager", password: PASSWORD, role: "top_manager" });
+    const gm = await createLogin(tx, { username: "topmanager", name: "Boris Kostov", password: PASSWORD, role: "top_manager" });
     await createLogin(tx, { username: "accountant", name: "Accounting", password: PASSWORD, role: "accountant" });
     const mFo = await createLogin(tx, { username: "manager.fo", name: "Maria Georgieva", password: PASSWORD, role: "manager" });
     const mHk = await createLogin(tx, { username: "manager.hk", name: "Elena Dimitrova", password: PASSWORD, role: "manager" });
@@ -40,7 +40,23 @@ async function main() {
       { userId: mFo, departmentId: fo.id },
       { userId: mHk, departmentId: hk.id },
       { userId: mHk, departmentId: fb.id },
+      { userId: gm, departmentId: mg.id },
     ]);
+
+    // Managers work shifts too, so they are employees with their existing login.
+    const managerStaff: Array<[string, string, string, string, number, string]> = [
+      ["Boris", "Kostov", "General Manager", mg.id, 1500, gm],
+      ["Maria", "Georgieva", "Front Office Manager", fo.id, 1100, mFo],
+      ["Elena", "Dimitrova", "Housekeeping Manager", hk.id, 1000, mHk],
+    ];
+    let no = 1001;
+    for (const [first, last, position, departmentId, rate, userId] of managerStaff) {
+      const [emp] = await tx
+        .insert(s.employees)
+        .values({ firstName: first, lastName: last, position, departmentId, userId, employeeNo: String(no++), phone: `+359 88 100 ${no}`, canViewDepartment: true })
+        .returning();
+      await tx.insert(s.employeeRates).values({ employeeId: emp.id, hourlyRateCents: rate, effectiveFrom: "2026-01-01", createdBy: adminId });
+    }
 
     const staff: Array<[string, string, string, string, number, boolean]> = [
       // first, last, position, dept, hourly rate (cents), has login
@@ -56,7 +72,6 @@ async function main() {
       ["Kalina", "Popova", "Waitress", fb.id, 620, false],
       ["Martin", "Iliev", "Cook", fb.id, 850, false],
     ];
-    let no = 1001;
     for (const [first, last, position, departmentId, rate, hasLogin] of staff) {
       const userId = hasLogin
         ? await createLogin(tx, {
@@ -68,7 +83,7 @@ async function main() {
         : null;
       const [emp] = await tx
         .insert(s.employees)
-        .values({ firstName: first, lastName: last, position, departmentId, userId, employeeNo: String(no++), canViewDepartment: hasLogin })
+        .values({ firstName: first, lastName: last, position, departmentId, userId, employeeNo: String(no++), phone: `+359 88 200 ${no}`, canViewDepartment: hasLogin })
         .returning();
       await tx.insert(s.employeeRates).values({ employeeId: emp.id, hourlyRateCents: rate, effectiveFrom: "2026-01-01", createdBy: adminId });
     }
@@ -79,6 +94,7 @@ async function main() {
       ["N", "Night", "#6366f1", [{ start: "23:00", end: "07:00" }], 0],
       ["S1", "Split", "#10b981", [{ start: "09:00", end: "11:00" }, { start: "15:00", end: "20:00" }], 0],
       ["HK", "Housekeeping day", "#ec4899", [{ start: "08:00", end: "16:30" }], 30],
+      ["D", "Office day", "#0ea5e9", [{ start: "09:00", end: "17:30" }], 30],
     ];
     const shifts = await tx
       .insert(s.shiftTemplates)
@@ -106,6 +122,7 @@ async function main() {
       [fo.id]: ["M", "M", "A", "A", "N", null, null],
       [hk.id]: ["HK", "HK", "HK", "HK", "HK", null, null],
       [fb.id]: ["S1", "S1", "A", "A", null, "S1", null],
+      [mg.id]: ["D", "D", "D", "D", "D", null, null],
     };
     const scheduleRows = [];
     const timesheetRows = [];
@@ -146,13 +163,14 @@ async function main() {
     }
     await tx.insert(s.scheduleEntries).values(scheduleRows);
     // Publish the demo month so employees can see it.
-    await tx.insert(s.schedulePublications).values([fo, hk, fb].map((d) => ({ departmentId: d.id, fromDate: from, toDate: to, createdBy: mFo })));
+    await tx.insert(s.schedulePublications).values([fo, hk, fb, mg].map((d) => ({ departmentId: d.id, fromDate: from, toDate: to, createdBy: mFo })));
     if (timesheetRows.length) await tx.insert(s.timesheetEntries).values(timesheetRows);
 
     await tx.insert(s.budgets).values([
-      { departmentId: fo.id, month: `${month}-01`, amountCents: 700000, hours: 800, createdBy: adminId },
-      { departmentId: hk.id, month: `${month}-01`, amountCents: 450000, hours: 700, createdBy: adminId },
+      { departmentId: fo.id, month: `${month}-01`, amountCents: 900000, hours: 980, createdBy: adminId },
+      { departmentId: hk.id, month: `${month}-01`, amountCents: 650000, hours: 870, createdBy: adminId },
       { departmentId: fb.id, month: `${month}-01`, amountCents: 425000, hours: 520, createdBy: adminId },
+      { departmentId: mg.id, month: `${month}-01`, amountCents: 400000, hours: 180, createdBy: adminId },
     ]);
 
     // One pending correction and one pending advance, to show the approval queues.

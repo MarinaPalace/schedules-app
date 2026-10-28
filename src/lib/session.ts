@@ -42,6 +42,16 @@ export async function assertRole(roles: readonly Role[]): Promise<CurrentUser> {
 }
 
 export const SEES_ALL_DEPARTMENTS: readonly Role[] = ["top_manager", "owner", "accountant", "admin"];
+/** May create departments and employees and assign department managers. */
+export const PEOPLE_ADMINS: readonly Role[] = ["admin", "owner", "top_manager"];
+
+/** Roles a user may give to others (nobody can hand out more power than they have). */
+export function assignableRoles(me: CurrentUser): Role[] {
+  if (me.role === "admin") return [...ROLES];
+  if (me.role === "owner") return ROLES.filter((r) => r !== "admin");
+  if (me.role === "top_manager") return ["employee", "manager"];
+  return [];
+}
 export const MANAGES: readonly Role[] = ["manager", "top_manager", "admin"];
 
 /** Departments whose data this user may see as a manager-level user. */

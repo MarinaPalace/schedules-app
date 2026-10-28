@@ -4,10 +4,17 @@ import { formatHours, formatSegments, paidMinutes, parseSegments } from "@/lib/s
 
 export type TemplateLite = { id: string; code: string; name: string; color: string; segments: Segment[]; paidMinutes: number };
 
-/** What one grid cell displays. */
-export type CellView = { kind: DayKind; label: string; color: string | null; paidMinutes: number; title: string };
+export type ToolLite =
+  | { type: "template"; templateId: string }
+  | { type: "off" }
+  | { type: "none" }
+  | { type: "absence"; code: string }
+  | { type: "custom"; text: string };
 
-export const EMPTY_CELL: CellView = { kind: "none", label: "", color: null, paidMinutes: 0, title: "" };
+/** What one grid cell displays; `tool` recreates the value (used for undo and copying). */
+export type CellView = { kind: DayKind; label: string; color: string | null; paidMinutes: number; title: string; tool: ToolLite };
+
+export const EMPTY_CELL: CellView = { kind: "none", label: "", color: null, paidMinutes: 0, title: "", tool: { type: "none" } };
 
 /** Builds the display for a stored schedule/timesheet row. */
 export function viewOfEntry(
@@ -18,26 +25,24 @@ export function viewOfEntry(
   if (e.kind === "shift") {
     const t = e.shiftTemplateId ? templates.find((x) => x.id === e.shiftTemplateId) : undefined;
     const times = formatSegments(e.segments);
+    const sameAsLegend = !!t && formatSegments(t.segments) === times;
     return {
       kind: "shift",
       // A legend edited later than this entry keeps the entry's own hours, so show "*".
-      label: t ? (formatSegments(t.segments) === times ? t.code : `${t.code}*`) : formatHours(e.paidMinutes),
+      label: t ? (sameAsLegend ? t.code : `${t.code}*`) : formatHours(e.paidMinutes),
+      tool: sameAsLegend ? { type: "template", templateId: t.id } : { type: "custom", text: e.segments.map((s) => `${s.start}-${s.end}`).join(" / ") },
       color: t?.color ?? "#64748b",
       paidMinutes: e.paidMinutes,
       title: `${t ? `${t.code} – ${t.name}: ` : ""}${times} (${formatHours(e.paidMinutes)} ${labels.hourUnit})`,
     };
   }
-  if (e.kind === "absence") return { kind: "absence", label: e.absenceCode ?? "?", color: null, paidMinutes: 0, title: labels.absence[e.absenceCode ?? ""] ?? "" };
-  if (e.kind === "off") return { kind: "off", label: "–", color: null, paidMinutes: 0, title: labels.dayOff };
+  if (e.kind === "absence") {
+    const code = e.absenceCode ?? "";
+    return { kind: "absence", label: code || "?", color: null, paidMinutes: 0, title: labels.absence[code] ?? "", tool: { type: "absence", code } };
+  }
+  if (e.kind === "off") return { kind: "off", label: "–", color: null, paidMinutes: 0, title: labels.dayOff, tool: { type: "off" } };
   return EMPTY_CELL;
 }
-
-export type ToolLite =
-  | { type: "template"; templateId: string }
-  | { type: "off" }
-  | { type: "none" }
-  | { type: "absence"; code: string }
-  | { type: "custom"; text: string };
 
 /** Display for a tool applied to a cell (client-side preview before saving). Null if invalid. */
 export function viewOfTool(tool: ToolLite, templates: TemplateLite[], labels: DayLabels): CellView | null {

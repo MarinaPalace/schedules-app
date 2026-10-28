@@ -8,10 +8,10 @@ import { shiftTemplates } from "@/db/schema";
 import { withActor } from "@/lib/actor";
 import { run, type ActionState } from "@/lib/action-state";
 import { AppError } from "@/lib/app-error";
-import { assertRole } from "@/lib/session";
+import { assertRole, PEOPLE_ADMINS } from "@/lib/session";
 import { formatHours, paidMinutes, parseSegments } from "@/lib/shifts";
 
-const ADMINS = ["admin", "top_manager"] as const;
+const ADMINS = PEOPLE_ADMINS;
 
 const fields = z.object({
   code: z

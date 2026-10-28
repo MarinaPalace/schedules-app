@@ -135,7 +135,7 @@ export function TimesheetDay({
   return (
     <div className="space-y-3">
       <div className="card overflow-x-auto p-0 sm:p-0">
-        <table className="table">
+        <table className="table table-stack">
           <thead>
             <tr>
               {editable && open.length > 0 && <th className="w-8"></th>}
@@ -151,10 +151,12 @@ export function TimesheetDay({
               return (
                 <tr key={r.employeeId} className="align-top">
                   {editable && open.length > 0 && (
-                    <td>
+                    <td className="max-md:float-right max-md:w-auto!">
                       {!r.approved && (
                         <input
                           type="checkbox"
+                          className="h-6 w-6 md:h-4 md:w-4"
+                          aria-label={r.name}
                           checked={!!selected[r.employeeId]}
                           disabled={!canApproveDate}
                           onChange={(e) => setSelected((s) => ({ ...s, [r.employeeId]: e.target.checked }))}
@@ -166,8 +168,8 @@ export function TimesheetDay({
                     <div className="font-medium whitespace-nowrap">{r.name}</div>
                     {r.position && <div className="text-xs text-gray-500">{r.position}</div>}
                   </td>
-                  <td className="text-xs whitespace-nowrap text-gray-600">{r.planned}</td>
-                  <td>
+                  <td data-label={t("timesheet.planned")} className="text-xs whitespace-nowrap text-gray-600">{r.planned}</td>
+                  <td data-label={t("timesheet.actualCol")}>
                     {!r.approved ? (
                       editable ? (
                         <DayEditor value={inputs[r.employeeId]} disabled={!canApproveDate} onChange={(v) => setInputs((s) => ({ ...s, [r.employeeId]: v }))} />
@@ -201,14 +203,14 @@ export function TimesheetDay({
                       </div>
                     )}
                   </td>
-                  <td className="whitespace-nowrap">
+                  <td className="whitespace-nowrap max-md:pt-2">
                     {r.approved ? (
                       <div className="flex flex-col items-start gap-1">
                         <span className="badge bg-green-100 text-green-800">{r.approved.version > 1 ? t("timesheet.approvedVersion", { version: r.approved.version }) : t("common.approved")}</span>
                         {editable && !r.pending && !ed && (
                           <button
                             type="button"
-                            className="text-xs text-blue-700 hover:underline"
+                            className="text-sm text-blue-700 hover:underline max-md:min-h-11"
                             onClick={() => setEditing((s) => ({ ...s, [r.employeeId]: { input: r.approved!.input, reason: "" } }))}
                           >
                             {t("timesheet.change")}
@@ -232,12 +234,20 @@ export function TimesheetDay({
       </div>
 
       {editable && open.length > 0 && (
-        <div className="flex flex-wrap items-center gap-3">
-          <button type="button" className="btn btn-primary" disabled={pending || !canApproveDate || chosen.length === 0} onClick={approve}>
+        <div className="sticky bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-30 flex flex-wrap items-center gap-3 rounded-2xl border border-gray-200 bg-surface p-3 shadow-lg md:static md:border-0 md:bg-transparent md:p-0 md:shadow-none">
+          <button
+            type="button"
+            className="btn"
+            onClick={() => setSelected(Object.fromEntries(open.map((r) => [r.employeeId, !open.every((x) => selected[x.employeeId])])))}
+            disabled={!canApproveDate}
+          >
+            {open.every((x) => selected[x.employeeId]) ? t("timesheet.selectNone") : t("timesheet.selectAll")}
+          </button>
+          <button type="button" className="btn btn-primary min-h-12 flex-1 md:flex-none" disabled={pending || !canApproveDate || chosen.length === 0} onClick={approve}>
             {pending ? t("schedule.saving") : t("timesheet.approveSelected", { count: chosen.length })}
           </button>
           {!canApproveDate && <span className="text-sm text-gray-500">{t("timesheet.futureNote")}</span>}
-          <span className="text-xs text-gray-500">{t("timesheet.lockNote")}</span>
+          <span className="text-xs text-gray-500 max-md:w-full">{t("timesheet.lockNote")}</span>
         </div>
       )}
       {msg.error && <p className="text-sm text-red-600">{msg.error}</p>}

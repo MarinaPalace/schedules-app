@@ -18,7 +18,7 @@ export function LinkTabs({
   options: Option[];
 }) {
   return (
-    <div className="inline-flex flex-wrap overflow-hidden rounded-lg border border-gray-300 bg-white text-sm">
+    <div className="inline-flex flex-wrap overflow-hidden rounded-lg border border-gray-300 bg-surface text-sm">
       {options.map((o) => (
         <Link
           key={o.value}

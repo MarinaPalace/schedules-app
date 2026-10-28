@@ -2,7 +2,7 @@
 
 Status legend: `[x]` done · `[~]` in progress / partial · `[ ]` pending
 
-Last updated: 2026-10-28 (Phases 0–5 done, languages + publishing added)
+Last updated: 2026-10-28 (Phases 0–5 + 7 done; Phase 8 = AI, planned)
 
 ---
 
@@ -139,7 +139,33 @@ Dashboard numbers per department & month:
 **Phases 2–5 verification (2026-10-28):** typecheck, lint, production build clean; `npm test` 9 unit tests pass (split/overnight hours, breaks, calendar incl. DST week, rates by date, cost maths, euro parsing); `db:check` passes. Every page loaded over HTTP for admin, top manager, manager, owner, accountant, employee. Server actions exercised over HTTP: paint shift ✓, paint in another department ✗ refused, employee paint ✗ refused, bad custom hours ✗, approve today ✓, approve twice ✗, approve future ✗, correction ✓, duplicate correction ✗, manager deciding correction ✗, top manager approve ✓ → v2, decide twice ✗, other-department manager deciding advance ✗, own manager approves ✓, employee page shows advance deducted, budgets form ✓, own-advance form ✓; dashboard numbers match (sick-note correction reduced cost by exactly 9 h × €7.50 × 1.19 = €80.33); audit chain intact afterwards. Bug found and fixed: a permission query outside an open transaction deadlocked on local PGlite.
 **Not yet done:** a visual click-through in a real browser.
 
-### Phase 6 — Hardening & rollout
+### Phase 7 — People, phones & tablets (done 2026-10-28)
+- [x] Admin, owner and GM create departments and employees and assign department managers
+- [x] Role chosen on the employee page; nobody can hand out more power than they have (admin → all, owner → all but admin, GM → employee/manager)
+- [x] Managers and the GM are employees too → they appear in schedules, Forma 76, and get their own pay view/advances
+- [x] Existing logins can be connected to an employee record
+- [x] Team page (`/team`): all my staff with today's shift, month hours, tap-to-call phone, links to their schedule
+- [x] Employee phone numbers
+- [x] Schedule editor rebuilt for phones:
+  - **Day** mode: day strip → list of people → big-button shift picker → jumps to the next person automatically
+  - **Person** mode: one person's days (week or month) → picker jumps to the next day; **Repeat this week** fills the rest of the month
+  - **Table** mode (tablet/computer): tap a cell to pick, or choose a legend and drag across cells
+  - Coverage per day (e.g. M × 2, A × 1, Off × 3, not planned × 2)
+  - **Undo** (multi-step) and **Publish** in a bottom bar within thumb reach; phones open in Day mode, computers in Table; last choice remembered
+- [x] Bottom tab bar on phones (main screens per role + Menu with everything, language, theme, sign out)
+- [x] Dark mode: Light / Dark / Auto (follows the phone), remembered per device
+- [x] Forma 76 on phones: one card per person, big checkboxes, sticky "Approve" bar, select all
+- [x] Phone-friendly controls: 44–64 px touch targets, 16 px inputs (no iOS zoom), safe-area support
+- [x] Verified with a scripted phone (390×844) and tablet (820×1180) run in Edge: pick → auto-advance → save → undo, repeat week, publish count, menu, dark mode, employee view – no browser errors. Bugs found and fixed: undo history cleared after each save; "repeat week" cleared days before a mid-week month start; dark mode backgrounds stayed white.
+
+### Phase 8 — AI schedule assistant (future)
+- [ ] Admin enters an OpenRouter API key (stored server-side only, encrypted; never sent to the browser) and picks a model
+- [ ] Per department: staffing needs per day/shift (e.g. Morning 2, Afternoon 2, Night 1) – also useful without AI as a coverage warning
+- [ ] "Suggest schedule" for a week/month: sends staff, legends, last weeks' pattern, absences, budget and needs (no names/pay if not needed) → model returns cells as JSON
+- [ ] Suggestion is applied as normal **unpublished** changes (amber dots) with one-tap **Undo**; manager reviews, edits, then publishes – the existing save/undo/publish flow already supports this
+- [ ] Log every AI suggestion in the audit trail
+
+
 - [x] Three languages: Bulgarian (default), English, Russian (next-intl; switcher on login + sidebar; remembered per device; browser language used first time)
 - [x] Translation safety: typecheck fails on unknown keys; `npm test` fails if bg/ru miss a key or a {placeholder}
 - [ ] Separate Postgres role without DELETE privileges for the app (Neon/Supabase)
@@ -160,8 +186,10 @@ Dashboard numbers per department & month:
 - [ ] Employees on monthly salary: enter an hourly equivalent? (current assumption: yes)
 - [x] Employer cost factor → 1.19 for now; owner/admin change it in **Budgets → Employer cost factor**
 - [ ] Who decides advances: manager alone, or manager + top manager? (current: department manager or top manager, one decision)
-- [x] Managers add/edit employees → **No**, stays admin + top manager (decided 2026-10-28)
+- [x] Managers add/edit employees → **No**; admin, owner and GM can (decided 2026-10-28)
 - [x] Employees see changes → **only after the manager publishes** (decided 2026-10-28, built)
+
+- [ ] May a manager approve their **own** Forma 76 day? (current: yes, it is audited; alternative: only the GM approves managers' days)
 
 ## 7. Running locally
 
@@ -173,7 +201,7 @@ npm run db:seed                # demo users, password: demo1234
 npm run dev
 ```
 
-Demo logins (after seed): `admin`, `owner`, `topmanager`, `accountant`, `manager.fo` (Front Office), `manager.hk` (Housekeeping + F&B), employees `ivan.petrov`, `petya.todorova` — password `demo1234`. The seed fills the current month with schedules, approved Forma 76 up to yesterday, budgets, one pending correction and one pending advance.
+Demo logins (after seed): `admin`, `owner`, `topmanager` (GM, works in Management), `accountant`, `manager.fo` (Front Office), `manager.hk` (Housekeeping + F&B), employees `ivan.petrov`, `petya.todorova` — password `demo1234`. The seed fills the current month with schedules, approved Forma 76 up to yesterday, budgets, one pending correction and one pending advance.
 
 Tests: `npm test` (calculations + translations) and `npm run db:check` (no-delete rules + audit chain).
 
@@ -186,3 +214,4 @@ Local database notes:
 - 2026-10-28 — Project created; Phase 0 + Phase 1 built and verified.
 - 2026-10-28 — Phases 2–5 built and verified (schedule grid, Forma 76 + corrections + export, budget dashboard, employee pay view + advances, PWA). DB driver → `pg`.
 - 2026-10-28 — Fixed "Failed query … break_minutes": a running dev server kept an old in-memory copy of the local database while it was rebuilt. Now: auto-migrate on start + lock file so scripts can't touch the database the app has open. Added BG/EN/RU and schedule publishing; open questions 2.1–2.4 answered. Next: visual review, Phase 6.
+- 2026-10-28 — Phase 7: people/permissions rework, Team page, phone-first schedule editor (Day/Person/Table, picker, undo, repeat week), bottom navigation, dark mode, Forma 76 phone layout. Phase 8 (AI via OpenRouter) planned.

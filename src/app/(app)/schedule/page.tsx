@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { cookies, headers } from "next/headers";
 import { addDays, addMonths, dateRange, isISODate, isMonth, mondayOf, monthBounds, monthLabel, monthOf } from "@/lib/calendar";
 import { viewOfEntry, type CellView } from "@/lib/cell-view";
 import { computeMonth } from "@/lib/costs";
@@ -6,14 +7,14 @@ import { getCostFactor, loadDepartmentEmployees, loadRates, loadSchedule, loadSh
 import { todayISO, formatDate } from "@/lib/dates";
 import { canManageDepartment, getVisibleDepartments, requireUser } from "@/lib/session";
 import { loadCutoffs } from "@/lib/published";
-import { ScheduleGrid } from "@/components/schedule-grid";
+import { ScheduleBoard, type BoardMode } from "@/components/schedule-board";
 import { LinkTabs, PeriodNav, href } from "@/components/toolbar";
 import { getDayLabels } from "@/lib/day-labels";
 import { getLocale, getTranslations } from "next-intl/server";
 
 export default async function SchedulePage({ searchParams }: PageProps<"/schedule">) {
   const user = await requireUser(["manager", "top_manager", "owner", "accountant", "admin"]);
-  const sp = (await searchParams) as { dept?: string; view?: string; start?: string; month?: string };
+  const sp = (await searchParams) as { dept?: string; view?: string; start?: string; month?: string; person?: string };
   const [t, locale, labels] = await Promise.all([getTranslations(), getLocale(), getDayLabels()]);
   const deps = await getVisibleDepartments(user);
   if (!deps.length) return <p className="text-sm text-gray-500">{t("common.noDepartments")}</p>;
@@ -66,6 +67,11 @@ export default async function SchedulePage({ searchParams }: PageProps<"/schedul
   const approved: Record<string, true> = {};
   for (const k of timesheet.keys()) approved[k] = true;
   const m = costs.get(dept.id)!;
+  // Remembered choice, otherwise "day" on phones and "table" on bigger screens.
+  const savedMode = (await cookies()).get("scheduleMode")?.value;
+  const isPhone = /Mobi|Android|iPhone/i.test((await headers()).get("user-agent") ?? "");
+  const defaultMode: BoardMode = sp.person ? "person" : savedMode === "day" || savedMode === "person" || savedMode === "table" ? savedMode : isPhone ? "day" : "table";
+  const lite = ({ id, code, name, color, segments, paidMinutes }: (typeof allTemplates)[number]) => ({ id, code, name, color, segments, paidMinutes });
 
   return (
     <div className="space-y-4">
@@ -75,13 +81,15 @@ export default async function SchedulePage({ searchParams }: PageProps<"/schedul
         <LinkTabs base="/schedule" params={{ dept: dept.id }} name="view" value={view} options={[{ value: "week", label: t("common.weekView") }, { value: "month", label: t("common.monthView") }]} />
         <PeriodNav label={label} prev={prev} next={next} today={todayHref} />
       </div>
-      <ScheduleGrid
+      <ScheduleBoard
+        key={`${dept.id}|${from}`}
         departmentId={dept.id}
         dates={dateRange(from, to)}
         employees={employees.map((e) => ({ id: e.id, name: `${e.lastName} ${e.firstName}`, position: e.position }))}
         initialCells={cells}
         approved={approved}
-        templates={templates.map(({ id, code, name, color, segments, paidMinutes }) => ({ id, code, name, color, segments, paidMinutes }))}
+        templates={templates.map(lite)}
+        allTemplates={allTemplates.map(lite)}
         rates={Object.fromEntries(rates)}
         factor={factor}
         editable={editable}
@@ -89,6 +97,8 @@ export default async function SchedulePage({ searchParams }: PageProps<"/schedul
         budget={{ month: budgetMonth, budgetCents: m.budgetCents, projectedCents: m.projectedCents }}
         weekStart={view === "week" ? from : null}
         unpublished={unpublished}
+        defaultMode={defaultMode}
+        initialPerson={sp.person ?? null}
       />
       {!editable && <p className="text-sm text-gray-500">{t("common.readOnly")}</p>}
     </div>

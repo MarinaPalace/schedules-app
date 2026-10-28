@@ -54,7 +54,8 @@
     "dayOff": "Day off",
     "system": "system",
     "login": "login",
-    "hourUnit": "h"
+    "hourUnit": "h",
+    "close": "Close"
   },
   "decision": {
     "approved": "approved",
@@ -87,7 +88,9 @@
     "shifts": "Shift legends",
     "users": "Users & roles",
     "audit": "Audit log",
-    "adminSection": "Admin"
+    "adminSection": "Admin",
+    "menu": "Menu",
+    "team": "Team"
   },
   "login": {
     "subtitle": "Sign in with the username you got from your manager.",
@@ -191,7 +194,11 @@
     "addedWithLogin": "{name} added with login \"{username}\"",
     "rateAdded": "Rate added",
     "loginCreated": "Login created",
-    "passwordChanged": "Password for \"{username}\" changed"
+    "passwordChanged": "Password for \"{username}\" changed",
+    "phone": "Phone",
+    "linkExisting": "Or connect an existing login",
+    "linkLogin": "Connect",
+    "loginLinked": "Login connected"
   },
   "shifts": {
     "title": "Shift legends",
@@ -239,20 +246,32 @@
     "custom": "Custom",
     "clear": "Clear",
     "hintTool": "Click or drag across cells to fill.",
-    "hintNoTool": "Pick a legend above, then click or drag across cells. With nothing picked, clicking a cell shows its history.",
+    "hintNoTool": "Tap a cell to choose its shift. For many cells at once, pick a legend above and drag across them.",
     "copyWeek": "Copy previous week",
     "copying": "Copying…",
     "copyConfirm": "Copy last week's schedule onto this week? Existing cells this week are overwritten.",
     "saving": "Saving…",
     "allSaved": "All changes saved",
-    "publish": "Publish ({count} changes)",
+    "publish": "Publish ({count, plural, one {# change} other {# changes}})",
     "publishing": "Publishing…",
     "published": "Published ✓",
     "notPublished": "Not published yet",
     "approvedMark": "Forma 76 approved",
     "noEmployees": "No employees in this department.",
     "footnote": "Cost = paid hours × hourly rate × employer cost factor ({factor}). ✓ = day approved in Forma 76. “*” = legend changed after this day was planned. Amber dot = change employees can't see until you publish.",
-    "customFormat": "Custom hours must look like \"08:00-12:00 / 17:00-21:00\""
+    "customFormat": "Custom hours must look like \"08:00-12:00 / 17:00-21:00\"",
+    "mode": {
+      "day": "Day",
+      "person": "Person",
+      "table": "Table"
+    },
+    "absent": "Absent",
+    "notPlanned": "Not planned",
+    "customHours": "Other hours",
+    "apply": "Set",
+    "history": "History",
+    "repeatWeek": "Repeat this week",
+    "undo": "Undo"
   },
   "history": {
     "back": "← Schedule",
@@ -293,7 +312,9 @@
     "unapprovedNote": "{count} planned day(s) are not approved yet (shown grey in brackets). Only approved days count as actual.",
     "approvedH": "Approved h",
     "notApprovedH": "Not appr. h",
-    "plannedNotApproved": "Planned, not approved: {text}"
+    "plannedNotApproved": "Planned, not approved: {text}",
+    "selectAll": "Select all",
+    "selectNone": "Select none"
   },
   "corrections": {
     "title": "Corrections of approved days",
@@ -400,5 +421,19 @@
     "request": "Request",
     "backToMine": "← My schedule",
     "noDeptAccess": "You don't have access to the department schedule. Ask your manager."
+  },
+  "team": {
+    "title": "Team",
+    "count": "{count, plural, one {# person} other {# people}}",
+    "call": "Call",
+    "monthHours": "This month: {approved} h approved + {planned} h planned",
+    "schedule": "Schedule",
+    "edit": "Edit"
+  },
+  "theme": {
+    "label": "Theme",
+    "light": "Light",
+    "dark": "Dark",
+    "system": "Auto"
   }
 }

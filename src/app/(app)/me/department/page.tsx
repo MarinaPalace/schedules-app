@@ -8,7 +8,7 @@ import { loadDepartmentEmployees, loadShiftTemplates } from "@/lib/data";
 import { loadPublishedSchedule } from "@/lib/published";
 import { formatDate, todayISO } from "@/lib/dates";
 import { getEmployeeForUser, requireUser } from "@/lib/session";
-import { ScheduleGrid } from "@/components/schedule-grid";
+import { ScheduleBoard } from "@/components/schedule-board";
 import { PeriodNav, href } from "@/components/toolbar";
 import { getDayLabels } from "@/lib/day-labels";
 import { getTranslations } from "next-intl/server";
@@ -52,13 +52,15 @@ export default async function MyDepartmentPage({ searchParams }: PageProps<"/me/
           today="/me/department"
         />
       </div>
-      <ScheduleGrid
+      <ScheduleBoard
         departmentId={emp.departmentId}
         dates={dateRange(from, to)}
         employees={employees.filter((e) => e.active).map((e) => ({ id: e.id, name: `${e.lastName} ${e.firstName}`, position: e.position }))}
         initialCells={cells}
         approved={{}}
         templates={[]}
+        allTemplates={templates.map(({ id, code, name, color, segments, paidMinutes }) => ({ id, code, name, color, segments, paidMinutes }))}
+        defaultMode="day"
         rates={{}}
         factor={1}
         editable={false}

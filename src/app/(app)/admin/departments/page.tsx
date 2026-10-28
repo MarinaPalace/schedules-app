@@ -1,13 +1,13 @@
-import { asc, eq, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import { departmentManagers, departments, employees, user } from "@/db/schema";
-import { requireUser } from "@/lib/session";
+import { PEOPLE_ADMINS, requireUser } from "@/lib/session";
 import { ActionForm, SubmitButton } from "@/components/action-form";
 import { createDepartment, setDepartmentManagers, updateDepartment } from "./actions";
 import { getTranslations } from "next-intl/server";
 
 export default async function DepartmentsPage() {
-  await requireUser(["admin", "top_manager"]);
+  await requireUser(PEOPLE_ADMINS);
   const t = await getTranslations();
 
   const [rows, managers, links] = await Promise.all([
@@ -20,7 +20,7 @@ export default async function DepartmentsPage() {
       })
       .from(departments)
       .orderBy(asc(departments.name)),
-    db.select({ id: user.id, name: user.name }).from(user).where(eq(user.role, "manager")).orderBy(asc(user.name)),
+    db.select({ id: user.id, name: user.name }).from(user).where(and(inArray(user.role, ["manager", "top_manager"]), eq(user.active, true))).orderBy(asc(user.name)),
     db.select().from(departmentManagers).where(eq(departmentManagers.active, true)),
   ]);
 

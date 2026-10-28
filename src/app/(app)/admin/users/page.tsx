@@ -1,7 +1,7 @@
 import { asc } from "drizzle-orm";
 import { db } from "@/db/client";
 import { employees, user } from "@/db/schema";
-import { requireUser, ROLES, type Role } from "@/lib/session";
+import { assignableRoles, requireUser, ROLES, type Role } from "@/lib/session";
 import { getTranslations } from "next-intl/server";
 
 type T = Awaited<ReturnType<typeof getTranslations<never>>>;
@@ -9,10 +9,10 @@ import { ActionForm, SubmitButton } from "@/components/action-form";
 import { resetPassword } from "../employees/actions";
 import { createUser, updateUser } from "./actions";
 
-function RoleSelect({ value, t }: { value?: string; t: T }) {
+function RoleSelect({ value, t, roles }: { value?: string; t: T; roles: Role[] }) {
   return (
     <select name="role" defaultValue={value ?? "manager"} className="input">
-      {ROLES.map((r) => (
+      {roles.map((r) => (
         <option key={r} value={r}>{t(`roles.${r}`)}</option>
       ))}
     </select>
@@ -20,7 +20,8 @@ function RoleSelect({ value, t }: { value?: string; t: T }) {
 }
 
 export default async function UsersPage() {
-  await requireUser(["admin"]);
+  const me = await requireUser(["admin", "owner"]);
+  const roles = assignableRoles(me);
   const t = await getTranslations();
   const users = await db.query.user.findMany({ orderBy: [asc(user.role), asc(user.name)] });
   const linked = new Set((await db.select({ userId: employees.userId }).from(employees)).map((e) => e.userId));
@@ -51,7 +52,7 @@ export default async function UsersPage() {
           </div>
           <div>
             <label className="label">{t("common.role")}</label>
-            <RoleSelect t={t} />
+            <RoleSelect t={t} roles={roles} />
           </div>
           <div className="sm:col-span-4">
             <SubmitButton>{t("users.create")}</SubmitButton>
@@ -69,6 +70,7 @@ export default async function UsersPage() {
               {linked.has(u.id) && <span className="badge">{t("users.employeeRecord")}</span>}
               {!u.active && <span className="badge">{t("users.deactivated")}</span>}
             </summary>
+            {roles.includes(u.role as Role) && (
             <div className="mt-4 grid gap-4 md:grid-cols-2">
               <ActionForm action={updateUser} className="space-y-3">
                 <input type="hidden" name="id" value={u.id} />
@@ -78,7 +80,7 @@ export default async function UsersPage() {
                 </div>
                 <div>
                   <label className="label">{t("common.role")}</label>
-                  <RoleSelect t={t} value={u.role} />
+                  <RoleSelect t={t} roles={roles} value={u.role} />
                 </div>
                 <label className="flex items-center gap-2 text-sm">
                   <input type="checkbox" name="active" defaultChecked={u.active} /> {t("users.activeCanLogin")}
@@ -94,6 +96,7 @@ export default async function UsersPage() {
                 <SubmitButton className="btn">{t("common.resetPassword")}</SubmitButton>
               </ActionForm>
             </div>
+            )}
           </details>
         ))}
       </div>

@@ -93,7 +93,7 @@ export async function saveCells(departmentId: string, input: unknown): Promise<{
       if (found.length !== empIds.length) throw new AppError("unknownEmployee");
       await tx.insert(scheduleEntries).values(rows);
     });
-    revalidatePath("/schedule");
+    // No revalidatePath here: the board keeps its own state, and a refresh would reset it mid-edit.
     return {};
   } catch (e) {
     return { error: await errorMessage(e) };

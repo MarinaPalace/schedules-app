@@ -1,16 +1,17 @@
 import Link from "next/link";
 import { and, asc, eq, sql, type SQL } from "drizzle-orm";
+import { getTranslations } from "next-intl/server";
 import { db } from "@/db/client";
 import { departments, employeeRates, employees, user } from "@/db/schema";
-import { requireUser } from "@/lib/session";
+import { assignableRoles, PEOPLE_ADMINS, requireUser, type Role } from "@/lib/session";
 import { formatEur } from "@/lib/money";
 import { todayISO } from "@/lib/dates";
 import { ActionForm, SubmitButton } from "@/components/action-form";
 import { createEmployee } from "./actions";
-import { getTranslations } from "next-intl/server";
+import { RoleSelect } from "@/components/role-select";
 
 export default async function EmployeesPage({ searchParams }: PageProps<"/admin/employees">) {
-  await requireUser(["admin", "top_manager"]);
+  const me = await requireUser(PEOPLE_ADMINS);
   const t = await getTranslations();
   const { dept, inactive } = (await searchParams) as { dept?: string; inactive?: string };
   const today = todayISO();
@@ -25,11 +26,12 @@ export default async function EmployeesPage({ searchParams }: PageProps<"/admin/
       .select({
         id: employees.id,
         name: sql<string>`${employees.lastName} || ' ' || ${employees.firstName}`,
-        employeeNo: employees.employeeNo,
         position: employees.position,
+        phone: employees.phone,
         active: employees.active,
         department: departments.name,
         username: user.username,
+        role: user.role,
         rate: sql<number | null>`(select ${employeeRates.hourlyRateCents} from ${employeeRates}
           where ${employeeRates.employeeId} = ${employees.id} and ${employeeRates.effectiveFrom} <= ${today}
           order by ${employeeRates.effectiveFrom} desc, ${employeeRates.createdAt} desc limit 1)`,
@@ -70,6 +72,10 @@ export default async function EmployeesPage({ searchParams }: PageProps<"/admin/
             <input name="position" className="input" />
           </div>
           <div>
+            <label className="label">{t("employees.phone")}</label>
+            <input name="phone" type="tel" className="input" autoComplete="off" />
+          </div>
+          <div>
             <label className="label">{t("common.employeeNo")}</label>
             <input name="employeeNo" className="input" />
           </div>
@@ -90,6 +96,10 @@ export default async function EmployeesPage({ searchParams }: PageProps<"/admin/
           <div>
             <label className="label">{t("employees.passwordIfUsername")}</label>
             <input name="password" className="input" autoComplete="new-password" />
+          </div>
+          <div>
+            <label className="label">{t("common.role")}</label>
+            <RoleSelect roles={assignableRoles(me)} t={t} />
           </div>
           <label className="flex items-center gap-2 self-end pb-2 text-sm">
             <input type="checkbox" name="canViewDepartment" /> {t("employees.canViewDepartment")}
@@ -120,7 +130,7 @@ export default async function EmployeesPage({ searchParams }: PageProps<"/admin/
               <th>{t("common.name")}</th>
               <th>{t("common.department")}</th>
               <th>{t("common.position")}</th>
-              <th>{t("common.employeeNo")}</th>
+              <th>{t("employees.phone")}</th>
               <th className="text-right">{t("employees.ratePerHour")}</th>
               <th>{t("employees.login")}</th>
             </tr>
@@ -136,9 +146,12 @@ export default async function EmployeesPage({ searchParams }: PageProps<"/admin/
                 </td>
                 <td>{e.department}</td>
                 <td>{e.position}</td>
-                <td>{e.employeeNo}</td>
+                <td className="whitespace-nowrap">{e.phone}</td>
                 <td className="text-right tabular-nums">{e.rate !== null ? formatEur(e.rate) : "—"}</td>
-                <td className="text-gray-500">{e.username ?? "—"}</td>
+                <td className="text-gray-500">
+                  {e.username ?? "—"}
+                  {e.role && e.role !== "employee" && <span className="badge ml-2">{t(`roles.${e.role as Role}`)}</span>}
+                </td>
               </tr>
             ))}
             {rows.length === 0 && (

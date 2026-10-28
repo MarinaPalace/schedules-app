@@ -1,7 +1,7 @@
 import { asc, eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { departments, shiftTemplates } from "@/db/schema";
-import { requireUser } from "@/lib/session";
+import { PEOPLE_ADMINS, requireUser } from "@/lib/session";
 import { formatHours, formatSegments } from "@/lib/shifts";
 import { ActionForm, SubmitButton } from "@/components/action-form";
 import { createShift, updateShift } from "./actions";
@@ -62,7 +62,7 @@ function ShiftFields({
 }
 
 export default async function ShiftsPage() {
-  await requireUser(["admin", "top_manager"]);
+  await requireUser(PEOPLE_ADMINS);
   const t = await getTranslations();
   const [deps, rows] = await Promise.all([
     db.select({ id: departments.id, name: departments.name }).from(departments).where(eq(departments.active, true)).orderBy(asc(departments.name)),
