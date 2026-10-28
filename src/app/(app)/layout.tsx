@@ -4,7 +4,12 @@ import { Nav, type NavItem } from "@/components/nav";
 
 const NAV: Array<NavItem & { roles: Role[] }> = [
   { href: "/dashboard", label: "Dashboard", roles: ["manager", "top_manager", "owner", "accountant", "admin"] },
+  { href: "/schedule", label: "Schedule", roles: ["manager", "top_manager", "owner", "accountant", "admin"] },
+  { href: "/timesheet", label: "Forma 76", roles: ["manager", "top_manager", "owner", "accountant", "admin"] },
+  { href: "/corrections", label: "Corrections", roles: ["manager", "top_manager", "owner", "admin"] },
+  { href: "/advances", label: "Advances", roles: ["manager", "top_manager", "owner", "accountant", "admin"] },
   { href: "/me", label: "My schedule", roles: ["employee", "manager", "top_manager", "admin"] },
+  { href: "/admin/budgets", label: "Budgets", section: "Admin", roles: ["owner", "admin", "top_manager"] },
   { href: "/admin/departments", label: "Departments", section: "Admin", roles: ["admin", "top_manager"] },
   { href: "/admin/employees", label: "Employees", section: "Admin", roles: ["admin", "top_manager"] },
   { href: "/admin/shifts", label: "Shift legends", section: "Admin", roles: ["admin", "top_manager"] },

@@ -3,7 +3,7 @@
 Schedules, Forma 76 and labour-budget tracking for the hotel.
 
 - **Plan, phases and progress:** see [PLAN.md](PLAN.md)
-- **Stack:** Next.js 16 · Drizzle · Neon Postgres (PGlite locally) · Better Auth (username login)
+- **Stack:** Next.js 16 · Drizzle · Postgres – Neon or Supabase (PGlite locally) · Better Auth (username login)
 
 ## Quick start
 
@@ -21,5 +21,6 @@ npm run dev
 | `npm run db:migrate` | Apply migrations |
 | `npm run db:seed` | Demo data (only on an empty database) |
 | `npm run db:check` | Verify no-delete / no-update rules and the audit hash chain |
+| `npm test` | Unit tests for hour and cost calculations |
 
 With PGlite, stop the dev server before running `db:*` scripts (one process at a time).

@@ -9,6 +9,10 @@ async function main() {
   const { createLogin } = await import("../src/lib/users");
   const { paidMinutes } = await import("../src/lib/shifts");
   const s = await import("../src/db/schema");
+  const { and, eq } = await import("drizzle-orm");
+
+  const extendLastByHour = (segs: Segment[]): Segment[] =>
+    segs.map((x, j) => (j === segs.length - 1 ? { ...x, end: `${String((Number(x.end.slice(0, 2)) + 1) % 24).padStart(2, "0")}${x.end.slice(2)}` } : x));
 
   const existing = await db.select().from(s.departments).limit(1);
   if (existing.length) {
@@ -76,16 +80,101 @@ async function main() {
       ["S1", "Split", "#10b981", [{ start: "09:00", end: "11:00" }, { start: "15:00", end: "20:00" }], 0],
       ["HK", "Housekeeping day", "#ec4899", [{ start: "08:00", end: "16:30" }], 30],
     ];
-    await tx.insert(s.shiftTemplates).values(
-      templates.map(([code, name, color, segments, breakMinutes]) => ({
-        code,
-        name,
-        color,
-        segments,
-        breakMinutes,
-        paidMinutes: paidMinutes(segments, breakMinutes),
-      })),
-    );
+    const shifts = await tx
+      .insert(s.shiftTemplates)
+      .values(
+        templates.map(([code, name, color, segments, breakMinutes]) => ({
+          code,
+          name,
+          color,
+          segments,
+          breakMinutes,
+          paidMinutes: paidMinutes(segments, breakMinutes),
+        })),
+      )
+      .returning();
+    const byCode = Object.fromEntries(shifts.map((t) => [t.code, t]));
+
+    // A month of demo schedule: rotating patterns per department.
+    const { todayISO } = await import("../src/lib/dates");
+    const { monthBounds, monthOf, dateRange } = await import("../src/lib/calendar");
+    const today = todayISO();
+    const month = monthOf(today);
+    const { from, to } = monthBounds(month);
+    const allEmployees = await tx.select().from(s.employees);
+    const patterns: Record<string, (string | null)[]> = {
+      [fo.id]: ["M", "M", "A", "A", "N", null, null],
+      [hk.id]: ["HK", "HK", "HK", "HK", "HK", null, null],
+      [fb.id]: ["S1", "S1", "A", "A", null, "S1", null],
+    };
+    const scheduleRows = [];
+    const timesheetRows = [];
+    for (const [i, emp] of allEmployees.entries()) {
+      const pattern = patterns[emp.departmentId];
+      for (const [d, date] of dateRange(from, to).entries()) {
+        const code = pattern[(d + i * 2) % 7];
+        const t = code ? byCode[code] : null;
+        const row = {
+          employeeId: emp.id,
+          workDate: date,
+          kind: t ? "shift" : "off",
+          shiftTemplateId: t?.id ?? null,
+          segments: t?.segments ?? [],
+          breakMinutes: t?.breakMinutes ?? 0,
+          paidMinutes: t?.paidMinutes ?? 0,
+          departmentId: emp.departmentId,
+          createdBy: mFo,
+        };
+        scheduleRows.push(row);
+        // Past days are approved; every 9th worked day someone stayed an hour longer.
+        if (date < today) {
+          const longer = t && (d + i) % 9 === 0;
+          const fixedSegments = longer ? extendLastByHour(t.segments) : row.segments;
+          timesheetRows.push({
+            employeeId: emp.id,
+            workDate: date,
+            version: 1,
+            kind: row.kind,
+            segments: fixedSegments,
+            breakMinutes: row.breakMinutes,
+            paidMinutes: t ? paidMinutes(fixedSegments, row.breakMinutes) : 0,
+            departmentId: emp.departmentId,
+            createdBy: mFo,
+          });
+        }
+      }
+    }
+    await tx.insert(s.scheduleEntries).values(scheduleRows);
+    if (timesheetRows.length) await tx.insert(s.timesheetEntries).values(timesheetRows);
+
+    await tx.insert(s.budgets).values([
+      { departmentId: fo.id, month: `${month}-01`, amountCents: 700000, hours: 800, createdBy: adminId },
+      { departmentId: hk.id, month: `${month}-01`, amountCents: 450000, hours: 700, createdBy: adminId },
+      { departmentId: fb.id, month: `${month}-01`, amountCents: 425000, hours: 520, createdBy: adminId },
+    ]);
+
+    // One pending correction and one pending advance, to show the approval queues.
+    const ivan = allEmployees.find((e) => e.firstName === "Ivan")!;
+    const firstApproved = timesheetRows.find((r) => r.employeeId === ivan.id && r.kind === "shift");
+    if (firstApproved) {
+      const [base] = await tx
+        .select()
+        .from(s.timesheetEntries)
+        .where(and(eq(s.timesheetEntries.employeeId, ivan.id), eq(s.timesheetEntries.workDate, firstApproved.workDate)));
+      await tx.insert(s.correctionRequests).values({
+        employeeId: ivan.id,
+        workDate: base.workDate,
+        baseTimesheetId: base.id,
+        kind: "absence",
+        absenceCode: "Б",
+        segments: [],
+        paidMinutes: 0,
+        reason: "Brought a sick note afterwards",
+        createdBy: mFo,
+      });
+    }
+    const petya = allEmployees.find((e) => e.firstName === "Petya")!;
+    await tx.insert(s.advanceRequests).values({ employeeId: petya.id, amountCents: 20000, note: "Rent", createdBy: petya.userId });
   });
 
   console.log(`Seed done. All demo users have password "${PASSWORD}".`);

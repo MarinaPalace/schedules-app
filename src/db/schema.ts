@@ -10,6 +10,7 @@ import {
   timestamp,
   uuid,
   index,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { user } from "./auth-schema";
 
@@ -105,6 +106,7 @@ export const scheduleEntries = pgTable(
     shiftTemplateId: uuid("shift_template_id").references(() => shiftTemplates.id),
     absenceCode: text("absence_code"),
     segments: jsonb("segments").$type<Segment[]>().notNull().default([]),
+    breakMinutes: integer("break_minutes").notNull().default(0),
     paidMinutes: integer("paid_minutes").notNull().default(0),
     departmentId: uuid("department_id")
       .notNull()
@@ -129,6 +131,7 @@ export const timesheetEntries = pgTable(
     kind: text("kind").notNull(),
     absenceCode: text("absence_code"),
     segments: jsonb("segments").$type<Segment[]>().notNull().default([]),
+    breakMinutes: integer("break_minutes").notNull().default(0),
     paidMinutes: integer("paid_minutes").notNull().default(0),
     departmentId: uuid("department_id")
       .notNull()
@@ -139,7 +142,7 @@ export const timesheetEntries = pgTable(
     createdBy: createdBy(),
     createdAt: createdAt(),
   },
-  (t) => [index("timesheet_entries_lookup_idx").on(t.employeeId, t.workDate, t.version)],
+  (t) => [uniqueIndex("timesheet_entries_version_uq").on(t.employeeId, t.workDate, t.version)],
 );
 
 export const correctionRequests = pgTable("correction_requests", {
@@ -151,6 +154,8 @@ export const correctionRequests = pgTable("correction_requests", {
   baseTimesheetId: uuid("base_timesheet_id")
     .notNull()
     .references(() => timesheetEntries.id),
+  /** Unpaid break inside the segments, in minutes. */
+  breakMinutes: integer("break_minutes").notNull().default(0),
   kind: text("kind").notNull(),
   absenceCode: text("absence_code"),
   segments: jsonb("segments").$type<Segment[]>().notNull().default([]),

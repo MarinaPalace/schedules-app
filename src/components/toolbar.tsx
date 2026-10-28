@@ -1,0 +1,54 @@
+import Link from "next/link";
+
+type Option = { value: string; label: string };
+
+/** Row of link-buttons; keeps the other query params. */
+export function LinkTabs({
+  base,
+  params,
+  name,
+  value,
+  options,
+}: {
+  base: string;
+  params: Record<string, string | undefined>;
+  name: string;
+  value: string;
+  options: Option[];
+}) {
+  return (
+    <div className="inline-flex flex-wrap overflow-hidden rounded-lg border border-gray-300 bg-white text-sm">
+      {options.map((o) => (
+        <Link
+          key={o.value}
+          href={href(base, { ...params, [name]: o.value })}
+          className={`px-3 py-1.5 ${o.value === value ? "bg-blue-600 text-white" : "text-gray-700 hover:bg-gray-50"}`}
+        >
+          {o.label}
+        </Link>
+      ))}
+    </div>
+  );
+}
+
+export function PeriodNav({ label, prev, next, today }: { label: string; prev: string; next: string; today?: string }) {
+  return (
+    <div className="inline-flex items-center gap-1">
+      <Link href={prev} className="btn btn-sm" aria-label="Previous">←</Link>
+      <span className="min-w-36 text-center text-sm font-medium">{label}</span>
+      <Link href={next} className="btn btn-sm" aria-label="Next">→</Link>
+      {today && (
+        <Link href={today} className="btn btn-sm">
+          Today
+        </Link>
+      )}
+    </div>
+  );
+}
+
+export function href(base: string, params: Record<string, string | undefined | null>): string {
+  const q = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) if (v) q.set(k, v);
+  const s = q.toString();
+  return s ? `${base}?${s}` : base;
+}

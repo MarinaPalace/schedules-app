@@ -5,6 +5,11 @@ export function todayISO(): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: HOTEL_TZ }).format(new Date());
 }
 
+/** Calendar date (YYYY-MM-DD) of a timestamp in the hotel's time zone. */
+export function hotelDate(d: Date): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: HOTEL_TZ }).format(d);
+}
+
 export function formatDateTime(d: Date): string {
   return new Intl.DateTimeFormat("en-GB", {
     timeZone: HOTEL_TZ,

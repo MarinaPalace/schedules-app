@@ -2,7 +2,7 @@
 
 Status legend: `[x]` done · `[~]` in progress / partial · `[ ]` pending
 
-Last updated: 2026-10-28
+Last updated: 2026-10-28 (Phases 0–5 done)
 
 ---
 
@@ -79,8 +79,10 @@ Dashboard numbers per department & month:
 - [x] Better Auth (username/password, sign-up disabled)
 - [x] Migration runner + seed script with demo data
 - [x] PLAN.md (this file)
-- [ ] Create Neon project (EU) and set `DATABASE_URL` — **needs owner action**
-- [ ] GitHub repo + Vercel project — **needs owner action**
+- [x] GitHub repo: https://github.com/MarinaPalace/schedules-app
+- [x] DB driver switched to `pg` so Neon **or** Supabase work with just a connection string
+- [ ] Create Neon or Supabase project (EU) and set `DATABASE_URL` — **owner action, later**
+- [ ] Vercel project (region `fra1`) + env vars — **owner action, later**
 
 ### Phase 1 — Foundation
 - [x] Schema: departments, employees, rates, shift templates, settings, audit
@@ -95,43 +97,56 @@ Dashboard numbers per department & month:
 - [x] Password reset by admin (any user) / top manager (employees)
 - [x] Deactivated users cannot log in (checked at session creation and on every request)
 - [x] `npm run db:check` — proves deletes/updates are blocked and tampering is detected
-- [ ] Managers manage employees of their own departments (currently admin + top manager only) — decide in Phase 2
+- [ ] Managers manage employees of their own departments (currently admin + top manager only) — open question
 
 **Phase 1 verification (2026-10-28):** typecheck, lint and production build clean; `db:check` all passed; HTTP smoke test of every role (admin, owner, top manager, manager, employee) — correct pages / redirects, manager sees only own departments; forms tested over HTTP: create department, duplicate rejected, create employee with login, split legend `10:00-14:00 / 18:00-22:30` − 30 min = 8 h, invalid hours rejected, deactivated employee login → 403. Login rate limit active (3 attempts / 10 s).
 
 ### Phase 2 — Schedules
-- [ ] Weekly schedule grid per department (employees × days), pick legend / off / absence per cell
-- [ ] Live counters: hours and cost per employee & week, department cost vs budget for the month
-- [ ] Copy previous week
-- [ ] Employee "My schedule" (mobile first)
-- [ ] Department schedule view for employees with permission
-- [ ] Schedule change history per cell
+- [x] Schedule grid per department, week **and** month view (`/schedule`)
+- [x] "Paint" mode: pick a legend / Off / absence (О, Б, НП, Н) / custom hours / Clear, then click or drag across cells; auto-saves
+- [x] Live totals: hours and cost per employee, hours per day, and month projected cost vs budget banner
+- [x] Copy previous week
+- [x] Cell history (`/schedule/history`): every plan change, Forma 76 version and correction, with who/when
+- [x] Employee "My schedule" (mobile first) – next 7 days + month list
+- [x] Department schedule for employees with permission (`/me/department`), no money shown
+- [x] Schedule rows snapshot hours and break, so editing a legend never rewrites past days (marked "*")
 
 ### Phase 3 — Forma 76 (daily actual hours)
-- [ ] Daily screen per department, prefilled from schedule
-- [ ] Manager edits times / absence code and approves (locks day)
-- [ ] Correction request with reason for approved days
-- [ ] Top-manager queue: approve / reject corrections
-- [ ] Monthly Forma 76 grid view (employees × days) + Excel/CSV export for accountants
+- [x] Daily screen per department, prefilled from schedule (`/timesheet`)
+- [x] Manager adjusts hours / break / absence code and approves selected rows → locked (version 1)
+- [x] Future days cannot be approved; double approval blocked (also by a unique DB index)
+- [x] Change of an approved day = correction request with mandatory reason
+- [x] Top-manager queue (`/corrections`): approve → new version, or reject; stale requests refused
+- [x] Month grid (`/timesheet/month`) – approved values, unapproved plan in grey brackets, totals, absence counts
+- [x] CSV export for accountants (BOM + `;` + decimal comma → opens directly in Bulgarian Excel)
 
 ### Phase 4 — Budget dashboard
-- [ ] Budgets per department per month (owner/admin)
-- [ ] Dashboard: budget / actual / projected / status per department + hotel total
-- [ ] Cumulative chart (budget line vs actual + projection)
-- [ ] Drill-down per department → per employee hours and cost
-- [ ] Unapproved-days warning (days in the past without approved Forma 76)
+- [x] Budgets per department per month in € (+ optional hours), copy from previous month (`/admin/budgets`)
+- [x] Employer cost factor setting (owner/admin)
+- [x] Dashboard: budget / actual / projected / % / status per department + hotel total (`/dashboard`)
+- [x] Cumulative chart: budget pace vs actual vs projected, "today" marker
+- [x] Drill-down per department → per employee approved/planned hours and cost (`/dashboard/[dept]`)
+- [x] Warning for past days scheduled but not approved
 
-### Phase 5 — Employee money view
-- [ ] My hours this month (scheduled vs approved)
-- [ ] Estimated pay = approved hours × rate − approved advances
-- [ ] Advance requests (employee or manager on behalf) + manager/top-manager decision
-- [ ] PWA install (home-screen icon)
+### Phase 5 — Employee money view & advances
+- [x] My hours this month: approved + still planned
+- [x] Estimated gross pay (earned so far / projected), approved advances, expected rest
+- [x] Advance request by employee (`/me`) or by manager on behalf (`/advances`)
+- [x] Manager of the department / top manager / admin decides; nobody decides their own advance
+- [x] Monthly list of advances with approved total (accountants can see it)
+- [x] PWA: manifest + icon → "Add to home screen"
+
+**Phases 2–5 verification (2026-10-28):** typecheck, lint, production build clean; `npm test` 9 unit tests pass (split/overnight hours, breaks, calendar incl. DST week, rates by date, cost maths, euro parsing); `db:check` passes. Every page loaded over HTTP for admin, top manager, manager, owner, accountant, employee. Server actions exercised over HTTP: paint shift ✓, paint in another department ✗ refused, employee paint ✗ refused, bad custom hours ✗, approve today ✓, approve twice ✗, approve future ✗, correction ✓, duplicate correction ✗, manager deciding correction ✗, top manager approve ✓ → v2, decide twice ✗, other-department manager deciding advance ✗, own manager approves ✓, employee page shows advance deducted, budgets form ✓, own-advance form ✓; dashboard numbers match (sick-note correction reduced cost by exactly 9 h × €7.50 × 1.19 = €80.33); audit chain intact afterwards. Bug found and fixed: a permission query outside an open transaction deadlocked on local PGlite.
+**Not yet done:** a visual click-through in a real browser.
 
 ### Phase 6 — Hardening & rollout
 - [ ] Bulgarian UI translation (next-intl) — confirm language with owner
-- [ ] Separate Postgres role without DELETE privileges for the app (Neon)
-- [ ] Automated tests: paid-minutes calc, permission checks, trigger blocks
-- [ ] Backups / restore test (Neon PITR)
+- [ ] Separate Postgres role without DELETE privileges for the app (Neon/Supabase)
+- [ ] Visual review on desktop + phone; polish after first real use
+- [ ] Optional: "publish week" step before employees see schedule changes
+- [x] Automated tests: hour/cost calculations (`npm test`), trigger blocks (`npm run db:check`)
+- [ ] Automated permission tests (currently verified manually over HTTP)
+- [ ] Backups / restore test (provider point-in-time recovery)
 - [ ] Pilot with one department for a full month, compare with accountants' figures
 - [ ] Optional: occupancy/revenue input → labour cost % and cost per occupied room
 
@@ -143,7 +158,8 @@ Dashboard numbers per department & month:
 - [ ] Budgets in € only, or also in hours? (model supports both; UI shows € first)
 - [ ] Employees on monthly salary: enter an hourly equivalent? (current assumption: yes)
 - [ ] Employer cost factor — confirm with accountants (default 1.19)
-- [ ] Who decides advances: manager alone, or manager + top manager?
+- [ ] Who decides advances: manager alone, or manager + top manager? (current: department manager or top manager, one decision)
+- [ ] Should managers be able to add/edit employees of their own department? (current: admin + top manager)
 - [ ] Should employees see schedule changes immediately, or only after the manager "publishes" a week?
 
 ## 7. Running locally
@@ -156,10 +172,13 @@ npm run db:seed                # demo users, password: demo1234
 npm run dev
 ```
 
-Demo logins (after seed): `admin`, `owner`, `topmanager`, `manager.fo`, `manager.hk`, `ivan.petrov` (employee) — password `demo1234`.
+Demo logins (after seed): `admin`, `owner`, `topmanager`, `accountant`, `manager.fo` (Front Office), `manager.hk` (Housekeeping + F&B), employees `ivan.petrov`, `petya.todorova` — password `demo1234`. The seed fills the current month with schedules, approved Forma 76 up to yesterday, budgets, one pending correction and one pending advance.
+
+Tests: `npm test` (calculations) and `npm run db:check` (no-delete rules + audit chain).
 
 Note: with PGlite, stop `npm run dev` before running migrate/seed (single-process database).
 
 ## 8. Change log
 
-- 2026-10-28 — Project created; Phase 0 + Phase 1 built and verified. Next: Phase 2 (schedule grid).
+- 2026-10-28 — Project created; Phase 0 + Phase 1 built and verified.
+- 2026-10-28 — Phases 2–5 built and verified (schedule grid, Forma 76 + corrections + export, budget dashboard, employee pay view + advances, PWA). DB driver → `pg`. Next: visual review, open questions, Phase 6.
