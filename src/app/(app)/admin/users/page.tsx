@@ -21,7 +21,7 @@ function RoleSelect({ value, t, roles }: { value?: string; t: T; roles: Role[] }
 }
 
 export default async function UsersPage() {
-  const me = await requireUser(["admin", "owner"]);
+  const me = await requireUser(["admin", "owner", "top_manager"]);
   const roles = assignableRoles(me);
   const t = await getTranslations();
   const users = await db.query.user.findMany({ orderBy: [asc(user.role), asc(user.name)] });

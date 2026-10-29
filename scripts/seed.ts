@@ -24,6 +24,10 @@ async function main() {
   const adminId = await db.transaction((tx) =>
     createLogin(tx, { username: "admin", name: "System Admin", password: PASSWORD, role: "admin" }),
   );
+  if (process.argv.includes("--admin-only")) {
+    console.log(`Empty database with only the login "admin" / "${PASSWORD}" – change the password under My account.`);
+    process.exit(0);
+  }
 
   await withActor(adminId, async (tx) => {
     const [fo, hk, fb, mg] = await tx

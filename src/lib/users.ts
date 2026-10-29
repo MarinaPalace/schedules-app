@@ -30,7 +30,10 @@ export async function createLogin(
   if (existing) throw new AppError("usernameTaken", { username });
 
   const id = crypto.randomUUID();
+  const { getDefaultLocale } = await import("@/lib/settings");
+  const locale = await getDefaultLocale(tx);
   await tx.insert(user).values({
+    locale,
     id,
     name: input.name,
     email: placeholderEmail(username),

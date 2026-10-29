@@ -7,7 +7,9 @@ import { todayISO } from "@/lib/dates";
 import { requireUser } from "@/lib/session";
 import { ActionForm, SubmitButton } from "@/components/action-form";
 import { PeriodNav, href } from "@/components/toolbar";
-import { copyBudgetsFromPreviousMonth, saveBudgets, saveCostFactor } from "./actions";
+import Link from "next/link";
+import { copyBudgetsFromPreviousMonth, saveBudgets } from "./actions";
+import { NeedsCost } from "@/components/needs-gaps";
 import { getLocale, getTranslations } from "next-intl/server";
 
 export default async function BudgetsPage({ searchParams }: PageProps<"/admin/budgets">) {
@@ -67,21 +69,17 @@ export default async function BudgetsPage({ searchParams }: PageProps<"/admin/bu
         <p className="mt-3 text-xs text-gray-500">{t("budgets.historyNote")}</p>
       </div>
 
-      {(me.role === "owner" || me.role === "admin") && (
-        <div className="card">
-          <h2 className="mb-1 font-medium">{t("budgets.factorTitle")}</h2>
-          <p className="mb-3 text-sm text-gray-500">
-            {t("budgets.factorHelp")}
-          </p>
-          <ActionForm action={saveCostFactor} className="flex items-end gap-2">
-            <div>
-              <label className="label">{t("budgets.factor")}</label>
-              <input name="factor" defaultValue={factor} className="input w-24" inputMode="decimal" />
-            </div>
-            <SubmitButton className="btn">{t("common.save")}</SubmitButton>
-          </ActionForm>
-        </div>
-      )}
+      <div className="card space-y-1 text-sm">
+        <h2 className="font-medium">{t("budgets.factorTitle")}</h2>
+        <p className="text-gray-600">{t("budgets.factorNow", { factor })}</p>
+        <p className="text-xs text-gray-500">{t("hotel.factorHelp")}</p>
+        {(me.role === "owner" || me.role === "admin") && (
+          <Link href="/admin/hotel" className="text-blue-700 hover:underline">
+            {t("budgets.changeFactor")} →
+          </Link>
+        )}
+      </div>
+      <NeedsCost departmentIds={deps.map((d) => d.id)} month={month} factor={factor} />
     </div>
   );
 }

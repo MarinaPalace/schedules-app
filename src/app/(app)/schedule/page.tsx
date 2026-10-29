@@ -2,12 +2,13 @@ import { redirect } from "next/navigation";
 import { cookies, headers } from "next/headers";
 import { addDays, addMonths, dateRange, isISODate, isMonth, mondayOf, monthBounds, monthLabel, monthOf } from "@/lib/calendar";
 import { viewOfEntry, type CellView } from "@/lib/cell-view";
-import { computeMonth } from "@/lib/costs";
+import { computeMonth, moneyBasisFor } from "@/lib/costs";
 import { getCostFactor, loadDepartmentEmployees, loadRates, loadSchedule, loadShiftTemplates, loadTimesheet } from "@/lib/data";
 import { todayISO, formatDate } from "@/lib/dates";
 import { canManageDepartment, getVisibleDepartments, requireUser } from "@/lib/session";
 import { loadCutoffs } from "@/lib/published";
 import { loadLocations, loadRoles } from "@/lib/org";
+import { needsForDates } from "@/lib/needs";
 import { ScheduleBoard, type BoardMode } from "@/components/schedule-board";
 import { LinkTabs, PeriodNav, href } from "@/components/toolbar";
 import { getDayLabels } from "@/lib/day-labels";
@@ -45,6 +46,8 @@ export default async function SchedulePage({ searchParams }: PageProps<"/schedul
   const employees = await loadDepartmentEmployees(dept.id, from, to);
   const ids = employees.map((e) => e.id);
   const budgetMonth = monthOf(view === "week" ? addDays(from, 3) : from);
+  // Managers see pay only (what staff receive); the budget is converted to a pay budget.
+  const basis = moneyBasisFor(user.role);
   const [schedule, timesheet, templates, allTemplates, rates, factor, editable, costs, cutoff, roles, places] = await Promise.all([
     loadSchedule(ids, from, to),
     loadTimesheet(ids, from, to),
@@ -53,11 +56,14 @@ export default async function SchedulePage({ searchParams }: PageProps<"/schedul
     loadRates(ids),
     getCostFactor(),
     canManageDepartment(user, dept.id),
-    computeMonth([dept.id], budgetMonth),
+    computeMonth([dept.id], budgetMonth, { basis }),
     loadCutoffs([dept.id], from, to),
     loadRoles([dept.id]),
     loadLocations([dept.id]),
   ]);
+  const needs = Object.fromEntries(
+    Object.entries(await needsForDates([dept.id], dateRange(from, to))).map(([d, byPlace]) => [d, Object.fromEntries(Object.entries(byPlace).map(([l, n]) => [l, n.rows]))]),
+  );
 
   const cells: Record<string, CellView> = {};
   for (const [k, e] of schedule) cells[k] = viewOfEntry(e, allTemplates, labels);
@@ -104,7 +110,9 @@ export default async function SchedulePage({ searchParams }: PageProps<"/schedul
         templates={templates.map(lite)}
         allTemplates={allTemplates.map(lite)}
         rates={Object.fromEntries(rates)}
-        factor={factor}
+        factor={basis === "pay" ? 1 : factor}
+        basis={basis}
+        needs={needs}
         editable={editable}
         today={today}
         budget={{ month: budgetMonth, budgetCents: m.budgetCents, projectedCents: m.projectedCents }}

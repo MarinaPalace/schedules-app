@@ -2,7 +2,7 @@ import "server-only";
 import { and, asc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
 import { jobRoles, locations } from "@/db/schema";
-import { canManageDepartment, PEOPLE_ADMINS, type CurrentUser } from "@/lib/session";
+import { canEditStaffOf, type CurrentUser } from "@/lib/session";
 
 export type { LocationLite, RoleLite } from "@/lib/org-types";
 
@@ -33,5 +33,5 @@ export async function placeNames(): Promise<Record<string, string>> {
 
 /** Admin, owner and GM for every department; a manager for their own departments. */
 export async function canSetUpDepartment(user: CurrentUser, departmentId: string) {
-  return PEOPLE_ADMINS.includes(user.role) || (await canManageDepartment(user, departmentId));
+  return canEditStaffOf(user, departmentId);
 }

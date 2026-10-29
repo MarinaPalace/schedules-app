@@ -52,10 +52,14 @@ export const PEOPLE_ADMINS: readonly Role[] = ["admin", "owner", "top_manager"];
 export function assignableRoles(me: CurrentUser): Role[] {
   if (me.role === "admin") return [...ROLES];
   if (me.role === "owner") return ROLES.filter((r) => r !== "admin");
-  if (me.role === "top_manager") return ["employee", "manager"];
+  if (me.role === "top_manager") return ["employee", "manager", "accountant"];
+  // Department managers invite their own staff.
+  if (me.role === "manager") return ["employee"];
   return [];
 }
 export const MANAGES: readonly Role[] = ["manager", "top_manager", "admin"];
+/** May add and edit staff: everyone for admin/owner/GM, own departments for a manager (see canEditStaffOf). */
+export const STAFF_EDITORS: readonly Role[] = ["admin", "owner", "top_manager", "manager"];
 
 /** Departments whose data this user may see as a manager-level user. */
 export const getVisibleDepartments = cache(async (user: CurrentUser) => {
@@ -83,3 +87,15 @@ export async function canManageDepartment(user: CurrentUser, departmentId: strin
 export const getEmployeeForUser = cache(async (userId: string) => {
   return db.query.employees.findFirst({ where: eq(employees.userId, userId) }) ?? null;
 });
+
+/** Admin, owner and GM for every department; a manager for the departments they manage. */
+export async function canEditStaffOf(user: CurrentUser, departmentId: string): Promise<boolean> {
+  if (PEOPLE_ADMINS.includes(user.role)) return true;
+  return user.role === "manager" && (await canManageDepartment(user, departmentId));
+}
+
+/** Departments whose staff this user may add or edit. */
+export async function staffDepartments(user: CurrentUser) {
+  if (!STAFF_EDITORS.includes(user.role)) return [];
+  return getVisibleDepartments(user);
+}

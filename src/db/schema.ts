@@ -77,6 +77,52 @@ export const locations = pgTable(
   (t) => [uniqueIndex("locations_dept_code_uq").on(t.departmentId, t.code)],
 );
 
+/** Hotel-wide named periods (e.g. High season 01.06–30.09) that staffing needs can be set for. */
+export const seasons = pgTable("seasons", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: text("name").notNull(),
+  fromDate: date("from_date").notNull(),
+  toDate: date("to_date").notNull(),
+  active: boolean("active").notNull().default(true),
+  createdBy: createdBy(),
+  createdAt: createdAt(),
+});
+
+/**
+ * Append-only. How many people of each role a location needs, for one scope:
+ * a set of weekdays (bit 0 = Monday … bit 6 = Sunday), all year or within a season, or one date.
+ * The latest plan per (location, scope) is the current one; an empty plan removes the rule.
+ */
+export const staffingPlans = pgTable(
+  "staffing_plans",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    locationId: uuid("location_id")
+      .notNull()
+      .references(() => locations.id),
+    weekdays: integer("weekdays").notNull().default(127),
+    seasonId: uuid("season_id").references(() => seasons.id),
+    onDate: date("on_date"),
+    note: text("note"),
+    createdBy: createdBy(),
+    createdAt: createdAt(),
+  },
+  (t) => [index("staffing_plans_location_idx").on(t.locationId, t.createdAt)],
+);
+
+export const staffingPlanRows = pgTable("staffing_plan_rows", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  planId: uuid("plan_id")
+    .notNull()
+    .references(() => staffingPlans.id),
+  fromTime: text("from_time").notNull(),
+  toTime: text("to_time").notNull(),
+  roleId: uuid("role_id")
+    .notNull()
+    .references(() => jobRoles.id),
+  count: integer("count").notNull(),
+});
+
 export const employees = pgTable("employees", {
   id: uuid("id").primaryKey().defaultRandom(),
   userId: text("user_id")

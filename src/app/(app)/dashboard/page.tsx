@@ -1,7 +1,14 @@
 import Link from "next/link";
 import { addDays, addMonths, isMonth, mondayOf, monthLabel, monthOf } from "@/lib/calendar";
 import { loadUnpublished } from "@/lib/published";
-import { budgetStatus, computeMonth, type BudgetStatus } from "@/lib/costs";
+import { budgetStatus, computeMonth, moneyBasisFor, type BudgetStatus } from "@/lib/costs";
+import { EmptyState } from "@/components/empty-state";
+import { PageHelp } from "@/components/page-help";
+import { SetupChecklist } from "@/components/setup-checklist";
+import { FirstIntro } from "@/components/first-intro";
+import { LinkTabs } from "@/components/toolbar";
+import { NeedsGaps } from "@/components/needs-gaps";
+import { PEOPLE_ADMINS } from "@/lib/session";
 import { todayISO } from "@/lib/dates";
 import { formatEur } from "@/lib/money";
 import { getVisibleDepartments, requireUser } from "@/lib/session";
@@ -25,14 +32,28 @@ function Pct({ value, budget }: { value: number; budget: number | null }) {
 
 export default async function DashboardPage({ searchParams }: PageProps<"/dashboard">) {
   const user = await requireUser(["manager", "top_manager", "owner", "accountant", "admin"]);
-  const sp = (await searchParams) as { month?: string };
+  const sp = (await searchParams) as { month?: string; basis?: string };
   const [t, locale] = await Promise.all([getTranslations(), getLocale()]);
   const today = todayISO();
   const month = isMonth(sp.month) ? sp.month : monthOf(today);
   const deps = await getVisibleDepartments(user);
-  if (!deps.length) return <p className="text-sm text-gray-500">{t("common.noDepartments")}</p>;
-
-  const [costs, unpublished] = await Promise.all([computeMonth(deps.map((d) => d.id), month), loadUnpublished(deps.map((d) => d.id), today, addDays(today, 62))]);
+  if (!deps.length) {
+    // A brand-new hotel: say what to do instead of a dead end.
+    return (
+      <div className="max-w-3xl space-y-4">
+        <FirstIntro user={user} />
+        <SetupChecklist user={user} />
+        <EmptyState
+          icon="dashboard"
+          title={t("empty.dashboardTitle")}
+          text={t(PEOPLE_ADMINS.includes(user.role) ? "empty.dashboardAdmin" : "empty.dashboardOther")}
+          action={PEOPLE_ADMINS.includes(user.role) ? { href: "/admin/departments", label: t("empty.addDepartment") } : undefined}
+        />
+      </div>
+    );
+  }
+  const basis = moneyBasisFor(user.role, sp.basis);
+  const [costs, unpublished] = await Promise.all([computeMonth(deps.map((d) => d.id), month, { basis }), loadUnpublished(deps.map((d) => d.id), today, addDays(today, 62))]);
   const months = deps.map((d) => costs.get(d.id)!);
   const total = months.reduce(
     (t, m) => ({
@@ -50,8 +71,11 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
 
   return (
     <div className="max-w-6xl space-y-6">
+      <FirstIntro user={user} />
+      <SetupChecklist user={user} />
       <div className="flex flex-wrap items-center gap-3">
-        <h1 className="page-title mr-2">{t("dashboard.title")}</h1>
+        <h1 className="page-title">{t("dashboard.title")}</h1>
+        <PageHelp text={t("help.dashboard")} />
         <PeriodNav
           label={monthLabel(month, locale)}
           prev={href("/dashboard", { month: addMonths(month, -1) })}
@@ -63,11 +87,25 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
             {t("dashboard.setBudgets")}
           </Link>
         )}
+        {user.role !== "manager" && (
+          <LinkTabs
+            base="/dashboard"
+            params={{ month }}
+            name="basis"
+            value={basis}
+            options={[
+              { value: "cost", label: t("money.cost") },
+              { value: "pay", label: t("money.pay") },
+            ]}
+          />
+        )}
       </div>
+      <p className="-mt-3 text-xs text-gray-500">{t(basis === "pay" ? (user.role === "manager" ? "money.payNoteManager" : "money.payNote") : "money.costNote")}</p>
+      <NeedsGaps departmentIds={deps.map((d) => d.id)} from={today} to={addDays(today, 13)} />
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <div className="card">
-          <div className="text-xs text-gray-500">{t("common.budget")}</div>
+          <div className="text-xs text-gray-500">{t(basis === "pay" ? "money.payBudget" : "common.budget")}</div>
           <div className="mt-1 text-2xl font-semibold tabular-nums">{total.budgetCents !== null ? formatEur(total.budgetCents) : "—"}</div>
         </div>
         <div className="card">
@@ -139,7 +177,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
               return (
                 <tr key={d.id}>
                   <td>
-                    <Link href={href(`/dashboard/${d.id}`, { month })} className="font-medium text-blue-700 hover:underline">
+                    <Link href={href(`/dashboard/${d.id}`, { month, basis: sp.basis })} className="font-medium text-blue-700 hover:underline">
                       {d.name}
                     </Link>
                   </td>
@@ -181,7 +219,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
         </table>
       </div>
       <p className="text-xs text-gray-500">
-        {t("dashboard.footnote")}
+        {t(basis === "pay" ? "dashboard.footnotePay" : "dashboard.footnote")}
       </p>
     </div>
   );

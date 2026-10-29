@@ -23,6 +23,8 @@ import { AdvanceBadge } from "@/components/advance-badge";
 import { MeViewToggle } from "@/components/me-view-toggle";
 import { MonthTable, type MonthTableRow } from "@/components/month-table";
 import { SwapCard, SwapLine } from "@/components/swap-card";
+import { FirstIntro } from "@/components/first-intro";
+import { PageHelp } from "@/components/page-help";
 import { PeriodNav } from "@/components/toolbar";
 import { requestOwnAdvance } from "../advances/actions";
 import { cancelSwap, respondSwap } from "../swaps/actions";
@@ -106,6 +108,7 @@ export default async function MePage({ searchParams }: PageProps<"/me">) {
     rate: rateAt(rates, emp.id, d),
   }));
 
+  const rateNow = rateAt(rates, emp.id, today);
   const monthAdvances = advances.filter((a) => a.decision === "approved" && monthOf(hotelDate(a.createdAt)) === month);
   const advancesCents = monthAdvances.reduce((s, a) => s + a.amountCents, 0);
   const upcoming = dateRange(today, upcomingTo).map((d) => ({ date: d, sc: schedule.get(key(emp.id, d)), published: !!cutoff(emp.departmentId, d) }));
@@ -133,8 +136,12 @@ export default async function MePage({ searchParams }: PageProps<"/me">) {
 
   return (
     <div className={`space-y-5 ${view === "table" ? "" : "max-w-2xl"}`}>
+      <FirstIntro user={user} />
       <div>
-        <h1 className="page-title">{t("me.hello", { name: emp.firstName })}</h1>
+        <div className="flex items-center gap-2">
+          <h1 className="page-title">{t("me.hello", { name: emp.firstName })}</h1>
+          <PageHelp text={t("help.me")} />
+        </div>
         <p className="text-sm text-gray-500">
           {dept?.name}
           {emp.position ? ` · ${emp.position}` : ""}
@@ -213,6 +220,7 @@ export default async function MePage({ searchParams }: PageProps<"/me">) {
           <div className="text-xs text-gray-500">{t("me.estimatedPay")}</div>
           <div className="text-2xl font-semibold tabular-nums">{formatEur(projectedCents)}</div>
           <div className="text-xs text-gray-500">{t("me.earned", { amount: formatEur(earnedCents) })}</div>
+          {rateNow > 0 && <div className="text-xs text-gray-500">{t("me.perHour", { amount: formatEur(rateNow) })}</div>}
         </div>
         <div className="card">
           <div className="text-xs text-gray-500">{t("me.advancesApproved")}</div>

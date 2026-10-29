@@ -5,7 +5,9 @@ import { getTranslations } from "next-intl/server";
 import { z } from "zod";
 import { db } from "@/db/client";
 import { departments, employeeRates, employees, user } from "@/db/schema";
-import { assignableRoles, PEOPLE_ADMINS, requireUser, type Role } from "@/lib/session";
+import { assignableRoles, canEditStaffOf, PEOPLE_ADMINS, requireUser, STAFF_EDITORS, type Role } from "@/lib/session";
+import { loadLocations, loadRoles } from "@/lib/org";
+import { PayInput } from "@/components/pay-input";
 import { formatEur } from "@/lib/money";
 import { formatDate, formatDateTime, todayISO } from "@/lib/dates";
 import { ActionForm, SubmitButton } from "@/components/action-form";
@@ -14,16 +16,23 @@ import { LinkForm } from "@/components/link-form";
 import { addRate, createEmployeeLogin, linkExistingLogin, resetPassword, updateEmployee, updateLoginContact } from "../actions";
 
 export default async function EmployeePage({ params }: PageProps<"/admin/employees/[id]">) {
-  const me = await requireUser(PEOPLE_ADMINS);
+  const me = await requireUser(STAFF_EDITORS);
   const t = await getTranslations();
   const { id } = await params;
   if (!z.uuid().safeParse(id).success) notFound();
 
   const emp = await db.query.employees.findFirst({ where: eq(employees.id, id) });
   if (!emp) notFound();
+  // Managers only open the staff of their own departments.
+  if (!(await canEditStaffOf(me, emp.departmentId))) notFound();
+  if (me.role === "manager" && emp.userId) {
+    const target = await db.query.user.findFirst({ where: eq(user.id, emp.userId), columns: { role: true } });
+    if (emp.userId === me.id || (target && !assignableRoles(me).includes(target.role as Role))) notFound();
+  }
+  const canMove = PEOPLE_ADMINS.includes(me.role);
 
   const roles = assignableRoles(me);
-  const [deps, rates, login, freeLogins] = await Promise.all([
+  const [deps, rates, login, freeLogins, jobRoles, places] = await Promise.all([
     db.select().from(departments).orderBy(asc(departments.name)),
     db
       .select()
@@ -40,6 +49,8 @@ export default async function EmployeePage({ params }: PageProps<"/admin/employe
           .leftJoin(employees, eq(employees.userId, user.id))
           .where(isNull(employees.id))
           .orderBy(asc(user.name)),
+    loadRoles([emp.departmentId]),
+    loadLocations([emp.departmentId]),
   ]);
   const canManageLogin = !login || roles.includes(login.role as Role);
   const linkable = freeLogins.filter((u) => roles.includes(u.role as Role));
@@ -67,8 +78,10 @@ export default async function EmployeePage({ params }: PageProps<"/admin/employe
           </div>
           <div>
             <label className="label">{t("common.department")}</label>
-            <select name="departmentId" defaultValue={emp.departmentId} className="input">
-              {deps.map((d) => (
+            {/* Moves between departments are done by the GM; a manager sees the department only. */}
+            {!canMove && <input type="hidden" name="departmentId" value={emp.departmentId} />}
+            <select name={canMove ? "departmentId" : undefined} defaultValue={emp.departmentId} className="input" disabled={!canMove}>
+              {deps.filter((d) => canMove || d.id === emp.departmentId).map((d) => (
                 <option key={d.id} value={d.id}>
                   {d.name}
                   {d.active ? "" : ` (${t("common.inactive")})`}
@@ -78,7 +91,26 @@ export default async function EmployeePage({ params }: PageProps<"/admin/employe
           </div>
           <div>
             <label className="label">{t("common.position")}</label>
-            <input name="position" defaultValue={emp.position ?? ""} className="input" />
+            <select name="jobRoleId" defaultValue={emp.jobRoleId ?? ""} className="input">
+              <option value="">{jobRoles.length ? t("setup.noRole") : t("employees.noRolesYet")}</option>
+              {jobRoles.map((r) => (
+                <option key={r.id} value={r.id}>
+                  {r.name}
+                </option>
+              ))}
+            </select>
+            {!emp.jobRoleId && emp.position && <p className="mt-1 text-xs text-amber-700">{t("employees.oldPosition", { position: emp.position })}</p>}
+          </div>
+          <div>
+            <label className="label">{t("setup.usualLocation")}</label>
+            <select name="homeLocationId" defaultValue={emp.homeLocationId ?? ""} className="input">
+              <option value="">{t("setup.noLocation")}</option>
+              {places.map((l) => (
+                <option key={l.id} value={l.id}>
+                  {l.code} – {l.name}
+                </option>
+              ))}
+            </select>
           </div>
           <div>
             <label className="label">{t("employees.phone")}</label>
@@ -90,7 +122,7 @@ export default async function EmployeePage({ params }: PageProps<"/admin/employe
           </div>
           {login && (
             <div>
-              <label className="label">{t("common.role")}</label>
+              <label className="label">{t("employees.access")}</label>
               {canManageLogin ? (
                 <RoleSelect roles={roles} value={login.role} t={t} />
               ) : (
@@ -132,10 +164,7 @@ export default async function EmployeePage({ params }: PageProps<"/admin/employe
         </table>
         <ActionForm action={addRate} resetOnSuccess className="flex flex-wrap items-end gap-2">
           <input type="hidden" name="employeeId" value={emp.id} />
-          <div>
-            <label className="label">{t("employees.newRate")}</label>
-            <input name="hourlyRate" className="input w-32" inputMode="decimal" required />
-          </div>
+          <PayInput />
           <div>
             <label className="label">{t("employees.from")}</label>
             <input name="effectiveFrom" type="date" className="input" defaultValue={todayISO()} required />

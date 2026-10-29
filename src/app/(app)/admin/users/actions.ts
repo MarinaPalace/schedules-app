@@ -20,7 +20,7 @@ const nameSchema = z.string().trim().min(2, "nameTooShort");
 /** New login (e.g. a manager or accountant without an employee record); they get a link to choose a password. */
 export async function createUser(_: LinkResult, form: FormData): Promise<LinkResult> {
   try {
-    const me = await assertRole(["admin", "owner"]);
+    const me = await assertRole(["admin", "owner", "top_manager"]);
     const role = z.enum(ROLES).parse(form.get("role"));
     if (!assignableRoles(me).includes(role)) throw new AppError("notAllowed");
     const name = nameSchema.parse(form.get("name"));
@@ -38,7 +38,7 @@ export async function createUser(_: LinkResult, form: FormData): Promise<LinkRes
 
 export async function updateUser(_: ActionState, form: FormData): Promise<ActionState> {
   return run(async () => {
-    const me = await assertRole(["admin", "owner"]);
+    const me = await assertRole(["admin", "owner", "top_manager"]);
     const id = z.string().min(1).parse(form.get("id"));
     const role = z.enum(ROLES).parse(form.get("role"));
     const target = await db.query.user.findFirst({ where: eq(user.id, id) });

@@ -47,3 +47,9 @@ export async function sendPasswordChanged(userId: string) {
     force: true,
   });
 }
+
+/** Links for a printed invite slip: a fresh setup link and the Telegram connect link (nothing is sent). */
+export async function printableLinks(actorId: string, userId: string) {
+  const token = await withActor(actorId, (tx) => issueLink(tx, userId, "setup", actorId));
+  return { link: appUrl(`/set-password?token=${token}`), ...(await telegramConnect(actorId, userId)) };
+}

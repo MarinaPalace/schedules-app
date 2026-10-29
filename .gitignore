@@ -47,3 +47,6 @@ next-env.d.ts
 /.pglite.lock
 /.pglite-test
 /.pglite-test.lock
+/.pglite-backups
+# Demo snapshot holds real hotel data (names, rates) – kept local
+/demo

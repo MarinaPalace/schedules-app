@@ -1,7 +1,7 @@
 import "server-only";
 import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
-import { employees } from "@/db/schema";
+import { employees, user } from "@/db/schema";
 import type { Locale } from "@/i18n/config";
 import { dateRange, dayLabel } from "@/lib/calendar";
 import { viewOfEntry } from "@/lib/cell-view";
@@ -160,6 +160,29 @@ export function notifyCorrectionDecided(requestedBy: string | null, employeeName
       subject: t(`notify.correction.${decision}.subject`, { name: employeeName, date: formatDate(date) }),
       lines: [t(`notify.correction.${decision}.text`, { name: employeeName, date: formatDate(date) })],
       link: "/timesheet",
+    }),
+  );
+}
+
+/** A department manager changed someone's pay: the GM is told (managers may set pay since 2026-10-29). */
+export function notifyRateChanged(employeeId: string, cents: number, from: string, byUserId: string) {
+  let name = "";
+  let by = "";
+  deliverLater(
+    async () => {
+      const [emp, actor] = await Promise.all([
+        db.query.employees.findFirst({ where: eq(employees.id, employeeId) }),
+        db.query.user.findFirst({ where: eq(user.id, byUserId) }),
+      ]);
+      name = emp ? `${emp.firstName} ${emp.lastName}` : "";
+      by = actor?.name ?? "";
+      return (await usersWithRoles(["top_manager"])).filter((u) => u !== byUserId);
+    },
+    (t) => ({
+      kind: "rate.changed",
+      subject: t("notify.rate.subject", { name }),
+      lines: [t("notify.rate.text", { by, name, amount: formatEur(cents), date: formatDate(from) })],
+      link: `/admin/employees/${employeeId}`,
     }),
   );
 }

@@ -11,6 +11,7 @@ import { MobileNav } from "@/components/mobile-nav";
 import { LanguageSwitcher } from "@/components/language-switcher";
 import { ThemeSwitcher, type Theme } from "@/components/theme-switcher";
 import { loadBadges, type Badges } from "@/lib/badges";
+import { getHotelName } from "@/lib/settings";
 
 type NavKey =
   | "dashboard"
@@ -29,7 +30,11 @@ type NavKey =
   | "audit"
   | "account"
   | "notifications"
-  | "setup";
+  | "setup"
+  | "needs"
+  | "progress"
+  | "hotel"
+  | "help";
 
 const NAV: Array<{ href: string; key: NavKey; icon: string; admin?: boolean; roles: Role[] }> = [
   { href: "/dashboard", key: "dashboard", icon: "dashboard", roles: ["manager", "top_manager", "owner", "accountant", "admin"] },
@@ -41,12 +46,17 @@ const NAV: Array<{ href: string; key: NavKey; icon: string; admin?: boolean; rol
   { href: "/advances", key: "advances", icon: "advances", roles: ["manager", "top_manager", "owner", "accountant", "admin"] },
   { href: "/me", key: "mySchedule", icon: "mySchedule", roles: ["employee", "manager", "top_manager", "admin"] },
   { href: "/account", key: "account", icon: "bell", roles: ["employee", "manager", "top_manager", "owner", "accountant", "admin"] },
-  { href: "/setup", key: "setup", icon: "team", roles: ["manager", "top_manager", "owner", "admin"] },
-  { href: "/admin/budgets", key: "budgets", icon: "budgets", admin: true, roles: ["owner", "admin", "top_manager"] },
+  { href: "/help", key: "help", icon: "help", roles: ["employee", "manager", "top_manager", "owner", "accountant", "admin"] },
+  // Setting up: managers do their own department, owner/GM the hotel.
+  { href: "/admin/hotel", key: "hotel", icon: "admin", admin: true, roles: ["owner", "admin", "top_manager"] },
+  { href: "/admin/progress", key: "progress", icon: "dashboard", admin: true, roles: ["owner", "admin", "top_manager"] },
   { href: "/admin/departments", key: "departments", icon: "admin", admin: true, roles: ["admin", "owner", "top_manager"] },
-  { href: "/admin/employees", key: "employees", icon: "team", admin: true, roles: ["admin", "owner", "top_manager"] },
-  { href: "/admin/shifts", key: "shifts", icon: "schedule", admin: true, roles: ["admin", "owner", "top_manager"] },
-  { href: "/admin/users", key: "users", icon: "admin", admin: true, roles: ["admin", "owner"] },
+  { href: "/setup", key: "setup", icon: "team", admin: true, roles: ["manager", "top_manager", "owner", "admin"] },
+  { href: "/needs", key: "needs", icon: "dashboard", admin: true, roles: ["manager", "top_manager", "owner", "admin"] },
+  { href: "/admin/shifts", key: "shifts", icon: "schedule", admin: true, roles: ["manager", "admin", "owner", "top_manager"] },
+  { href: "/admin/employees", key: "employees", icon: "team", admin: true, roles: ["manager", "admin", "owner", "top_manager"] },
+  { href: "/admin/budgets", key: "budgets", icon: "budgets", admin: true, roles: ["owner", "admin", "top_manager"] },
+  { href: "/admin/users", key: "users", icon: "admin", admin: true, roles: ["admin", "owner", "top_manager"] },
   { href: "/admin/notifications", key: "notifications", icon: "bell", admin: true, roles: ["admin", "owner"] },
   { href: "/admin/audit", key: "audit", icon: "forma76", admin: true, roles: ["admin", "owner"] },
 ];
@@ -63,11 +73,12 @@ const PRIMARY: Record<Role, NavKey[]> = {
 
 export default async function AppLayout({ children }: LayoutProps<"/">) {
   const user = await requireUser();
-  const [t, badges, locale, saved] = await Promise.all([
+  const [t, badges, locale, saved, hotel] = await Promise.all([
     getTranslations(),
     loadBadges(user),
     getLocale(),
     db.query.user.findFirst({ where: eq(userTable.id, user.id), columns: { locale: true } }),
+    getHotelName(),
   ]);
   // Email/Telegram messages use the language the person actually uses the app in.
   if (saved && saved.locale !== locale) await db.update(userTable).set({ locale }).where(eq(userTable.id, user.id));
@@ -89,7 +100,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
     <div className="flex min-h-full flex-1 flex-col md:flex-row">
       {/* Phone: slim top bar + bottom tabs */}
       <header className="sticky top-0 z-30 flex items-center justify-between border-b border-gray-200 bg-surface/95 px-4 py-2.5 backdrop-blur md:hidden">
-        <div className="text-sm font-semibold">{t("common.appName")}</div>
+        <div className="text-sm font-semibold">{hotel ?? t("common.appName")}</div>
         <div className="truncate pl-3 text-xs text-gray-500">{userLine}</div>
       </header>
       <MobileNav primary={primary} all={items} theme={theme} signOut={signOut} userLine={userLine} />
@@ -97,7 +108,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
       {/* Tablet / computer: sidebar */}
       <aside className="hidden border-r border-gray-200 bg-surface p-3 md:flex md:w-60 md:shrink-0 md:flex-col">
         <div className="mb-4 px-3">
-          <div className="text-sm font-semibold">{t("common.appName")}</div>
+          <div className="text-sm font-semibold">{hotel ?? t("common.appName")}</div>
           <div className="text-xs text-gray-500">{userLine}</div>
         </div>
         <Nav items={items} />

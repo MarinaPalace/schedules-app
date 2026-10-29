@@ -36,10 +36,10 @@ export type DepartmentMonth = {
  * Actual = approved Forma 76 hours. Projected = actual + scheduled hours on days not yet approved.
  * Each day is attributed to the department stored on its row.
  */
-export async function computeMonth(departmentIds: string[], month: string): Promise<Map<string, DepartmentMonth>> {
+export async function computeMonth(departmentIds: string[], month: string, opts: { basis?: MoneyBasis } = {}): Promise<Map<string, DepartmentMonth>> {
   const { from, to } = monthBounds(month);
   const today = todayISO();
-  const [schedule, timesheet, rates, factor, budgetRows] = await Promise.all([
+  const [schedule, timesheet, rates, costFactor, budgetRows] = await Promise.all([
     loadSchedule("all", from, to),
     loadTimesheet("all", from, to),
     loadRates("all"),
@@ -47,13 +47,18 @@ export async function computeMonth(departmentIds: string[], month: string): Prom
     loadBudgets(departmentIds, month),
   ]);
 
+  // "pay": what staff receive (rate × hours); "cost": total cost to the hotel (× the owner's factor).
+  // Budgets are entered as total cost, so for "pay" they are converted with the same factor.
+  const pay = opts.basis === "pay";
+  const factor = pay ? 1 : costFactor;
+  const budgetIn = (cents: number | null | undefined) => (cents == null ? null : pay ? Math.round(cents / costFactor) : cents);
   const dates = dateRange(from, to);
   const result = new Map<string, DepartmentMonth>();
   for (const id of departmentIds) {
     const b = budgetRows.get(id);
     result.set(id, {
       departmentId: id,
-      budgetCents: b?.amountCents ?? null,
+      budgetCents: budgetIn(b?.amountCents),
       budgetHours: b?.hours ?? null,
       actualCents: 0,
       projectedCents: 0,
@@ -129,6 +134,18 @@ export async function computeMonth(departmentIds: string[], month: string): Prom
   }
   for (const d of result.values()) d.employees.sort((a, b) => a.name.localeCompare(b.name));
   return result;
+}
+
+/** pay = what staff receive · cost = total cost to the hotel (pay × cost factor). */
+export type MoneyBasis = "pay" | "cost";
+
+/**
+ * Which money a user sees: managers only ever see pay (and their budget converted to pay);
+ * owner, GM, admin and accountant choose, default total cost.
+ */
+export function moneyBasisFor(role: string, wanted?: string): MoneyBasis {
+  if (role === "manager") return "pay";
+  return wanted === "pay" ? "pay" : "cost";
 }
 
 export type BudgetStatus = "none" | "under" | "on_track" | "over";

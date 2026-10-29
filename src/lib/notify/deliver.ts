@@ -6,6 +6,7 @@ import { db } from "@/db/client";
 import { notifications, user } from "@/db/schema";
 import { DEFAULT_LOCALE, isLocale, type Locale } from "@/i18n/config";
 import { appUrl } from "@/lib/app-url";
+import { getHotelName } from "@/lib/settings";
 import { emailConfigured, sendEmail, sendTelegram, telegramConfigured } from "@/lib/notify/channels";
 import bg from "../../../messages/bg.json";
 import en from "../../../messages/en.json";
@@ -34,7 +35,7 @@ export async function deliver(userIds: string[], compose: Compose, opts: { force
   const result = new Map<string, Delivery>();
   const ids = [...new Set(userIds.filter(Boolean))];
   if (!ids.length) return result;
-  const people = await db.select().from(user).where(and(inArray(user.id, ids), eq(user.active, true)));
+  const [people, hotel] = await Promise.all([db.select().from(user).where(and(inArray(user.id, ids), eq(user.active, true))), getHotelName()]);
 
   for (const r of people) {
     const locale: Locale = isLocale(r.locale) ? r.locale : DEFAULT_LOCALE;
@@ -47,7 +48,7 @@ export async function deliver(userIds: string[], compose: Compose, opts: { force
     const label = msg.linkLabel ?? t("notify.open");
     const text = [...msg.lines, ...(link ? ["", `${label}: ${link}`] : [])].join("\n");
     const logged = link && msg.secretLink ? text.replace(link, "[link]") : text;
-    const subject = `${t("common.appName")}: ${msg.subject}`;
+    const subject = `${hotel ?? t("common.appName")}: ${msg.subject}`;
 
     const channels: { channel: "email" | "telegram"; to: string; ok: boolean; send: () => Promise<void> }[] = [];
     if (r.contactEmail && (opts.force || r.notifyEmail)) {

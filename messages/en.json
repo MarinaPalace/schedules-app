@@ -87,13 +87,17 @@
     "shifts": "Shift legends",
     "users": "Users & roles",
     "audit": "Audit log",
-    "adminSection": "Admin",
+    "adminSection": "Setting up",
     "menu": "Menu",
     "team": "Team",
     "swaps": "Shift swaps",
     "account": "My account",
     "notifications": "Notifications",
-    "setup": "Locations & roles"
+    "setup": "Locations & roles",
+    "needs": "Staffing needs",
+    "progress": "Setup progress",
+    "hotel": "Hotel profile",
+    "help": "Guide"
   },
   "login": {
     "subtitle": "Sign in with the username you got from your manager.",
@@ -180,7 +184,9 @@
     "telegramNotConfigured": "Telegram isn't set up on the server",
     "webhookNeedsHttps": "Telegram needs the app's public https address (set APP_URL)",
     "noChannels": "Add an email or connect Telegram first",
-    "otherDepartment": "That place or role belongs to another department"
+    "otherDepartment": "That place or role belongs to another department",
+    "moveByGm": "Moving someone to another department is done by the General Manager",
+    "needsTimeOrder": "Each time block must end after it starts"
   },
   "departments": {
     "title": "Departments",
@@ -191,17 +197,29 @@
     "noManagers": "No users with the Manager role yet (Users & roles).",
     "saveManagers": "Save managers",
     "created": "Department \"{name}\" created",
-    "managersUpdated": "Managers updated"
+    "managersUpdated": "Managers updated",
+    "wizardHelp": "Name it, pick a starting set of roles (optional), and add its manager – they get an invite to set up their department.",
+    "preset": "Start with roles for",
+    "presetNone": "– none –",
+    "copyFrom": "Or copy locations and roles from",
+    "addLegends": "Add common shifts (morning, afternoon, night, day)",
+    "newManagerHelp": "…or add a new manager – they get a login and an invite link:",
+    "create": "Create department",
+    "createdNext": "Department “{name}” created. Next: its manager sets up locations, roles and staff.",
+    "noManagersYet": "No managers yet – add one below.",
+    "addNewManager": "Add a new manager",
+    "inviteManager": "Create manager and send invite",
+    "managerAdded": "Manager added"
   },
   "employees": {
     "title": "Employees",
     "addToggle": "+ Add employee",
     "add": "Add employee",
-    "hourlyRate": "Hourly rate (€ gross)",
+    "hourlyRate": "Hourly pay (€)",
     "rateFrom": "Rate from",
     "usernameOptional": "Username (optional – for app login)",
     "showInactive": "Show inactive",
-    "ratePerHour": "Rate/h",
+    "ratePerHour": "Pay/h",
     "login": "Login",
     "none": "No employees",
     "back": "← Employees",
@@ -227,7 +245,14 @@
     "resetLinkReady": "Password link for {username} is ready",
     "sendResetLink": "Send password reset link",
     "resetHelp": "The person gets a link to choose a new password. You never see or type their password.",
-    "inviteHelp": "The person gets a link to choose their own password (by email if given, or via Telegram / QR below)."
+    "inviteHelp": "The person gets a link to choose their own password (by email if given, or via Telegram / QR below).",
+    "access": "Access",
+    "monthlyPay": "Monthly pay (€)",
+    "hoursPerMonth": "Hours per month",
+    "or": "or",
+    "payHelp": "What the employee receives (e.g. 1000 € for 160 hours = 6.25 €/h). The owner's cost factor is added only in the hotel's total budget.",
+    "noRolesYet": "– add roles under Locations & roles –",
+    "oldPosition": "Written before: “{position}” – choose the role"
   },
   "shifts": {
     "title": "Shift legends",
@@ -240,7 +265,9 @@
     "breakNote": "− {minutes} min break",
     "paid": "{hours} h paid",
     "created": "Legend {code} created ({hours} paid hours)",
-    "savedHours": "Saved – {hours} paid hours"
+    "savedHours": "Saved – {hours} paid hours",
+    "hotelWide": "all departments",
+    "hotelWideNote": "Hotel-wide shift – changed by the owner or GM."
   },
   "users": {
     "title": "Users & roles",
@@ -312,7 +339,8 @@
     "legendNamePlaceholder": "e.g. Short morning",
     "saveLegendApply": "Save legend and apply",
     "customHelp": "Without saving, these hours still appear in the legend with an automatic code (P1, P2…).",
-    "customHelpNoSave": "These hours appear in the legend with an automatic code (P1, P2…)."
+    "customHelpNoSave": "These hours appear in the legend with an automatic code (P1, P2…).",
+    "footnotePay": "Pay = paid hours × hourly pay. ✓ = day approved in Forma 76. “*” = legend changed after this day was planned. Amber dot = change employees can't see until you publish."
   },
   "history": {
     "back": "← Schedule",
@@ -388,7 +416,9 @@
     "savedCount": "{count} budget(s) saved",
     "copiedCount": "{count} budget(s) copied",
     "nothingToCopy": "Nothing to copy (no previous budgets, or this month is already set)",
-    "factorSet": "Cost factor set to {factor}"
+    "factorSet": "Cost factor set to {factor}",
+    "factorNow": "Current cost factor: {factor} (budgets are total cost = pay × factor).",
+    "changeFactor": "Change it in the hotel profile"
   },
   "dashboard": {
     "title": "Labour cost",
@@ -418,7 +448,8 @@
     "noHours": "No hours this month yet.",
     "activeEmployees": "active employees",
     "unpublishedWarning": "{name}: {count} upcoming schedule changes are not published – staff don't see them yet.",
-    "openSchedule": "Open schedule"
+    "openSchedule": "Open schedule",
+    "footnotePay": "Actual = approved hours × hourly pay. Projected = actual + scheduled hours of days not yet approved. Estimates, not payroll."
   },
   "chart": {
     "budgetPace": "Budget pace",
@@ -461,11 +492,11 @@
     "notPlanned": "not planned yet",
     "approvedHours": "Approved hours",
     "stillPlanned": "+ {hours} h still planned",
-    "estimatedPay": "Estimated pay (gross)",
+    "estimatedPay": "Your pay (estimate)",
     "earned": "{amount} earned so far",
     "advancesApproved": "Advances approved",
-    "expectedRest": "Expected rest (gross)",
-    "estimateNote": "Estimate only: hours × your hourly rate, before taxes and contributions. The final salary is calculated by accounting.",
+    "expectedRest": "Still to receive",
+    "estimateNote": "Estimate: approved and planned hours × your hourly pay, minus advances. The final amount is calculated by accounting.",
     "daysIn": "Days in {month}",
     "plannedBadge": "planned",
     "nothingThisMonth": "Nothing published for this month yet.",
@@ -477,7 +508,8 @@
     "viewTable": "Table",
     "wholeDepartment": "Whole department",
     "tableHelp": "Tap one of your coming days to ask a colleague to swap it.",
-    "tableHelpTeam": "Tap a colleague's day to ask them for a swap. Only published plans are shown."
+    "tableHelpTeam": "Tap a colleague's day to ask them for a swap. Only published plans are shown.",
+    "perHour": "{amount} per hour"
   },
   "team": {
     "title": "Team",
@@ -598,7 +630,18 @@
     "telegramTitle": "Connect Telegram",
     "copyTelegram": "Copy Telegram link",
     "telegramHelp": "The person scans it and presses Start – the bot then sends the password link there too.",
-    "done": "Done"
+    "done": "Done",
+    "resend": "Resend invite",
+    "resent": "Invite sent",
+    "resentNoChannel": "New link made – no email/Telegram, print the slip",
+    "resentAll": "{count, plural, one {# invite} other {# invites}} sent",
+    "resendAll": "Resend to {count} not logged in",
+    "resendAllConfirm": "Send a new invite to {count} people who haven't logged in yet?",
+    "status": {
+      "invited": "invited",
+      "active": "active",
+      "expired": "invite expired"
+    }
   },
   "notifyAdmin": {
     "title": "Notifications",
@@ -715,6 +758,10 @@
     "test": {
       "subject": "Test message",
       "text": "This is a test. If you can read it, notifications work."
+    },
+    "rate": {
+      "subject": "Pay changed: {name}",
+      "text": "{by} set the hourly pay of {name} to {amount} from {date}."
     }
   },
   "timeline": {
@@ -731,7 +778,9 @@
     "noRole": "No role",
     "roleFilter": "Role",
     "allRoles": "All roles",
-    "perPlace": "Staff per location"
+    "perPlace": "Staff per location",
+    "needs": "need {count}",
+    "needsLegend": "Have / need: red = short, green = covered, amber = more than needed."
   },
   "setup": {
     "title": "Locations & roles",
@@ -750,7 +799,24 @@
     "role": "Role",
     "noRole": "– no role –",
     "usualLocation": "Usual place",
-    "noLocation": "– no usual place –"
+    "noLocation": "– no usual place –",
+    "next": "Next",
+    "nextStep": {
+      "locations": "add the restaurants, bars or other places of this department.",
+      "roles": "add the roles (positions) people work as.",
+      "staff": "give everyone their position and usual place below.",
+      "needs": "set how many people each place needs, and when."
+    },
+    "presets": "Add common roles",
+    "presetGroup": {
+      "fnb": "Restaurant & bar",
+      "housekeeping": "Housekeeping",
+      "frontOffice": "Front office",
+      "kitchen": "Kitchen"
+    },
+    "oldPositions": "Written positions without a role: {list}",
+    "makeRoles": "Make them roles and assign them",
+    "up": "Move up"
   },
   "places": {
     "none": "– no place –",
@@ -774,5 +840,460 @@
     "other": "Outside main role",
     "plannedCol": "planned",
     "legend": "Approved Forma 76 hours; numbers in brackets are planned and not approved yet. Highlighted: hours in a role other than the main one."
+  },
+  "hotel": {
+    "title": "Hotel profile",
+    "profile": "Your hotel",
+    "name": "Hotel name",
+    "namePlaceholder": "e.g. Marina Palace",
+    "language": "Language for new accounts",
+    "languageHelp": "Used for invites and messages until a person picks their own language.",
+    "factor": "Cost factor",
+    "factorHelp": "Total cost to the hotel for every 1 € of pay (contributions and taxes on top). Used only in total budgets – staff and managers always see pay. Ask your accountant for the number.",
+    "saved": "Saved",
+    "seasons": "Seasons",
+    "seasonsHelp": "Named periods (e.g. high season) – staffing needs can be different in each.",
+    "newSeason": "New season",
+    "seasonPlaceholder": "e.g. High season",
+    "from": "From",
+    "to": "To"
+  },
+  "money": {
+    "cost": "Total cost",
+    "pay": "Pay",
+    "payBudget": "Pay budget",
+    "monthProjectedPay": "Month projected pay:",
+    "payNote": "Showing pay – what staff receive.",
+    "payNoteManager": "Amounts are pay – what staff receive. Your budget is shown as a pay budget.",
+    "costNote": "Showing total cost – pay × the cost factor, as in the budget."
+  },
+  "checklist": {
+    "title": "Getting started",
+    "titleDept": "Getting started – {name}",
+    "allDone": "All set ✓",
+    "progress": "{done} of {total}",
+    "hide": "Hide",
+    "done": "done",
+    "todo": "to do",
+    "optional": "optional",
+    "start": "Start",
+    "step": {
+      "hotel": {
+        "title": "Hotel profile",
+        "why": "The name appears on schedules and messages; the cost factor turns pay into total cost for budgets."
+      },
+      "gm": {
+        "title": "Invite the General Manager",
+        "why": "The GM can run the rest of the setup, or leave it to you."
+      },
+      "departments": {
+        "title": "Create the departments",
+        "why": "Every schedule, budget and person belongs to a department."
+      },
+      "managers": {
+        "title": "Give every department a manager",
+        "why": "Managers set up and plan their own department."
+      },
+      "deptSetup": {
+        "title": "Departments set up",
+        "why": "Each manager adds locations, roles and staff – follow it on the progress board."
+      },
+      "budgets": {
+        "title": "Budgets for this month",
+        "why": "Without a budget the dashboard can't say if a department is over."
+      },
+      "accountant": {
+        "title": "Invite the accountant",
+        "why": "They get Forma 76, hours by role and advances."
+      },
+      "notifications": {
+        "title": "Email and Telegram",
+        "why": "So invites, schedules and requests reach people's phones."
+      },
+      "locations": {
+        "title": "Add locations",
+        "why": "Each restaurant, bar or area gets its own schedule."
+      },
+      "roles": {
+        "title": "Add roles",
+        "why": "Waiter, helper, assistant manager… – to count staff per role."
+      },
+      "needs": {
+        "title": "Set staffing needs",
+        "why": "How many of each role every place needs, and when – the schedule then shows the gaps."
+      },
+      "legends": {
+        "title": "Shift legends",
+        "why": "Common shifts (e.g. 07:00–15:00) you can pick with one tap."
+      },
+      "staff": {
+        "title": "Add your staff",
+        "why": "Everyone you plan – one by one or pasted from Excel."
+      },
+      "logins": {
+        "title": "Everyone logged in",
+        "why": "Send invites or print the slips – people choose their own password."
+      },
+      "schedule": {
+        "title": "Plan the first schedule",
+        "why": "Pick shifts per day or per person."
+      },
+      "publish": {
+        "title": "Publish it",
+        "why": "Staff see it (and get a message) only after you publish."
+      },
+      "channel": {
+        "title": "Your email or Telegram",
+        "why": "To get notifications about advances and corrections."
+      },
+      "exports": {
+        "title": "Forma 76 export",
+        "why": "Monthly hours as an Excel file."
+      },
+      "roleHours": {
+        "title": "Hours by role",
+        "why": "Hours outside a person's main role (other pay rate)."
+      },
+      "advances": {
+        "title": "Advances",
+        "why": "Approve and mark advances as given."
+      }
+    }
+  },
+  "intro": {
+    "title": "Welcome",
+    "hello": "Welcome, {name}!",
+    "gotIt": "Got it",
+    "guide": "Open the guide",
+    "top_manager": {
+      "lead": "You run the hotel's staff planning.",
+      "one": "Create departments and give each a manager (or do their setup yourself).",
+      "two": "Follow each department's setup on the progress board.",
+      "three": "See labour cost vs budget for every department.",
+      "start": "Departments"
+    },
+    "manager": {
+      "lead": "You plan your department.",
+      "one": "Set up your locations, roles and staffing needs.",
+      "two": "Add your staff and send them their invites.",
+      "three": "Plan the schedule, publish it, approve Forma 76 every day.",
+      "start": "Set up my department"
+    },
+    "accountant": {
+      "lead": "You get the numbers for payroll.",
+      "one": "Forma 76 – monthly hours as Excel.",
+      "two": "Hours by role – for different pay rates.",
+      "three": "Advances – approve them and mark them as given.",
+      "start": "Forma 76"
+    },
+    "employee": {
+      "lead": "Here you see your work.",
+      "one": "Your shifts for the coming days and the month.",
+      "two": "Your hours and an estimate of your pay.",
+      "three": "Ask a colleague to swap a shift, or ask for an advance.",
+      "start": "My schedule"
+    }
+  },
+  "welcome": {
+    "steps": "Steps",
+    "step": {
+      "about": "About",
+      "hotel": "Hotel",
+      "who": "Who sets up",
+      "notify": "Messages"
+    },
+    "aboutTitle": "Welcome to your hotel's schedules",
+    "aboutLead": "The app helps you plan staff, keep the daily timesheet and watch labour cost. In short:",
+    "flow": {
+      "plan": {
+        "title": "Plan",
+        "text": "managers build the schedule per location from shift legends"
+      },
+      "see": {
+        "title": "Staff see it",
+        "text": "on their phone, with messages when it changes; they can swap shifts"
+      },
+      "forma": {
+        "title": "Forma 76",
+        "text": "every day the manager approves the hours really worked"
+      },
+      "cost": {
+        "title": "Cost",
+        "text": "you see labour cost against the budget for every department, live"
+      }
+    },
+    "whoDoesWhat": "Who does what",
+    "who": {
+      "owner": {
+        "name": "You (owner)",
+        "text": "hotel profile, budgets, the General Manager"
+      },
+      "gm": {
+        "name": "General Manager",
+        "text": "departments and their managers"
+      },
+      "manager": {
+        "name": "Department managers",
+        "text": "locations, roles, staff, schedules, Forma 76"
+      },
+      "accountant": {
+        "name": "Accountant",
+        "text": "monthly hours and advances"
+      },
+      "staff": {
+        "name": "Staff",
+        "text": "their schedule, hours, swaps and advances"
+      }
+    },
+    "start": "Let's start",
+    "hotelTitle": "Your hotel",
+    "saveNext": "Save and continue",
+    "whoTitle": "Who sets up the departments?",
+    "whoLead": "Invite your General Manager to do it – or skip and do it yourself; the checklist will guide you.",
+    "ownerTitle": "Your own login (recommended)",
+    "ownerText": "You're using the built-in admin account. Create your own owner login for daily use – you'll get a link to choose your password.",
+    "gmExists": "A General Manager already has a login.",
+    "gmTitle": "Invite the General Manager",
+    "gmText": "They get a link (and QR code) to choose their password, then can create the departments.",
+    "next": "Continue",
+    "whoLater": "You can do this later from Users & roles.",
+    "notifyTitle": "Messages to phones",
+    "notifyLead": "Invites, published schedules, swaps and decisions are sent by email and/or Telegram when these are set up.",
+    "emailOn": "Email is set up",
+    "emailOff": "Email isn't set up yet",
+    "telegramOn": "Telegram is set up",
+    "telegramOff": "Telegram isn't set up yet",
+    "notifyLater": "Not required to start: without it you hand people their invite link or QR code. Setup steps are in Notifications.",
+    "finish": "Go to my checklist",
+    "openGuide": "Read the guide",
+    "createInvite": "Create login and invite"
+  },
+  "guide": {
+    "whatIsThis": "What is this?",
+    "openGuide": "Open the guide",
+    "title": "Guide",
+    "lead": "How the app fits together and what each person does in it.",
+    "flowTitle": "From an empty hotel to the first schedule",
+    "reopenWelcome": "Open the welcome again",
+    "you": "you",
+    "flow": {
+      "owner": {
+        "title": "Owner",
+        "text": "Hotel profile (name, cost factor) and the General Manager's login."
+      },
+      "departments": {
+        "title": "Departments",
+        "text": "The owner or GM creates each department with its manager (the manager gets an invite)."
+      },
+      "manager": {
+        "title": "Manager sets up",
+        "text": "Locations (restaurants, bars…), roles, staffing needs per place and time, shift legends."
+      },
+      "staff": {
+        "title": "Staff",
+        "text": "The manager adds people (or pastes them from Excel) and sends invites or prints QR slips."
+      },
+      "schedule": {
+        "title": "Schedule",
+        "text": "Plan per location, check gaps against the needs, publish – staff get a message."
+      },
+      "daily": {
+        "title": "Every day",
+        "text": "Approve Forma 76 hours; swaps and advances come in as requests; the dashboard shows cost vs budget."
+      }
+    },
+    "role": {
+      "owner": {
+        "title": "Owner",
+        "one": "Sets the hotel profile and the cost factor (only the total budget uses it).",
+        "two": "Creates the GM and, if wanted, departments and managers.",
+        "three": "Sets the monthly budgets.",
+        "four": "Sees pay and total cost of every department."
+      },
+      "top_manager": {
+        "title": "General Manager",
+        "one": "Creates departments and their managers, sets seasons.",
+        "two": "Follows each department's setup on the progress board.",
+        "three": "Decides Forma 76 corrections and can approve swaps.",
+        "four": "Moves people between departments."
+      },
+      "manager": {
+        "title": "Department manager",
+        "one": "Sets up locations, roles, staffing needs and legends.",
+        "two": "Adds staff, sets their pay, sends invites.",
+        "three": "Plans and publishes the schedule, approves Forma 76 daily.",
+        "four": "Approves swaps and advances of the department."
+      },
+      "accountant": {
+        "title": "Accountant",
+        "one": "Downloads Forma 76 hours each month.",
+        "two": "Uses hours by role for different pay rates.",
+        "three": "Approves advances and marks them as given.",
+        "four": "Sees pay and total cost."
+      },
+      "employee": {
+        "title": "Staff",
+        "one": "Sees their shifts after the manager publishes.",
+        "two": "Sees their hours and an estimate of their pay.",
+        "three": "Asks colleagues to swap shifts.",
+        "four": "Asks for an advance."
+      }
+    },
+    "faqTitle": "Common questions",
+    "faq": {
+      "publish": {
+        "q": "Why don't staff see my schedule?",
+        "a": "Changes are visible only after Publish. An amber dot marks changes not published yet."
+      },
+      "swap": {
+        "q": "How does a swap work?",
+        "a": "The employee asks a colleague, the colleague accepts, the department manager approves – then both schedules change."
+      },
+      "forma": {
+        "q": "What is Forma 76 here?",
+        "a": "The daily record of hours really worked. Approved days are locked; changes go to the GM as corrections."
+      },
+      "advance": {
+        "q": "How do advances work?",
+        "a": "Requested by the employee (or the manager), approved by the manager or accounting, then marked as given by accounting."
+      },
+      "pdf": {
+        "q": "Can I print the schedule?",
+        "a": "Yes – the PDF button on the schedule prints the shown week or month, for one location or all, with a legend of the hours."
+      },
+      "password": {
+        "q": "Someone forgot their password",
+        "a": "They use “Forgot password?” on the sign-in page, or the manager sends a reset link from the employee page."
+      }
+    }
+  },
+  "help": {
+    "dashboard": "Labour cost of the month against the budget, per department. Managers see pay; owner, GM and accounting can switch to total cost.",
+    "departments": "Create departments and give each a manager. The manager gets an invite and then sets up their own department.",
+    "employees": "The people of your department(s): position, usual place, hourly pay and login. Invites go by email/Telegram or on printed slips.",
+    "hotel": "The hotel's name and language, the cost factor for total budgets, and seasons for staffing needs.",
+    "import": "Copy rows from Excel and paste them here. Check the preview, then create everyone at once.",
+    "me": "Your coming shifts, your hours and pay this month, swaps and advances.",
+    "needs": "For each location: how many people of each role are needed, from when to when. Rules can be for some weekdays, a season or one date.",
+    "progress": "How far each department is with its setup – click any cell to open that step.",
+    "setup": "The places of the department (each gets its own schedule), the roles people work as, and everyone's position and usual place.",
+    "shifts": "Shift legends are the shifts you pick in the schedule. Managers add their department's; the owner/GM the hotel-wide ones."
+  },
+  "empty": {
+    "addDepartment": "Create the first department",
+    "dashboardTitle": "Nothing to show yet",
+    "dashboardAdmin": "Start by creating the departments – the checklist above shows every step.",
+    "dashboardOther": "You aren't assigned to a department yet – ask the General Manager.",
+    "departmentsTitle": "No departments yet",
+    "departmentsText": "Departments hold the schedules, budgets and people – e.g. Front Office, Housekeeping, F&B.",
+    "legendsTitle": "No shift legends yet",
+    "legendsText": "Add the shifts you use (e.g. M = 07:00–15:00) – then you pick them with one tap in the schedule.",
+    "locationsText": "No locations yet. Add the restaurants, bars or areas of this department – each gets its own schedule.",
+    "rolesText": "No roles yet. Add what people work as (Waiter, Helper waiter…) – or tap a ready-made set below.",
+    "staffTitle": "No staff yet",
+    "staffText": "Add your people one by one with the form above, or paste a list from Excel with “Import from Excel”.",
+    "noDepartmentsForStaff": "You aren't the manager of a department yet."
+  },
+  "needs": {
+    "title": "Staffing needs",
+    "help": "How many people of each role each location needs, and when. The schedule and the dashboard then show the gaps.",
+    "firstTitle": "First the locations and roles",
+    "noLocations": "Add the locations of this department first.",
+    "noRoles": "Add the roles of this department first.",
+    "rulesNote": "Which rule applies on a day: a one-off date beats a season, a season beats all year; the narrowest set of days wins.",
+    "seasonsLink": "Seasons",
+    "rules": "Rules of {place}",
+    "noRules": "No rules yet.",
+    "newRule": "New rule",
+    "regular": "Regular days",
+    "oneDate": "One date",
+    "date": "Date",
+    "note": "What's on",
+    "notePlaceholder": "e.g. Wedding",
+    "days": "Days",
+    "everyDay": "Every day",
+    "monFri": "Mon–Fri",
+    "satSun": "Sat–Sun",
+    "season": "Season",
+    "allYear": "All year",
+    "from": "From",
+    "to": "To",
+    "removeBlock": "Remove",
+    "addBlock": "Add time block",
+    "perDay": "Needed per day",
+    "saved": "Saved",
+    "removeRule": "Remove rule",
+    "removeConfirm": "Remove this rule?",
+    "removed": "Removed",
+    "copyTitle": "Copy “{rule}” to",
+    "copy": "Copy",
+    "copied": "Copied",
+    "gapsTitle": "{count, plural, one {# gap} other {# gaps}} in the coming two weeks",
+    "missing": "{count} {role} missing",
+    "open": "Open schedule",
+    "more": "…and {count} more",
+    "costTitle": "Staffing needs – {month}",
+    "costHelp": "Needed hours × the average pay of each role. A starting point for the budget.",
+    "department": "Department",
+    "hours": "Hours",
+    "pay": "Pay",
+    "totalCost": "Total cost",
+    "dayShort": "Short of the staffing needs",
+    "publishWarning": "{count, plural, one {# day is} other {# days are}} short of the staffing needs. Publish anyway?"
+  },
+  "import": {
+    "title": "Import from Excel",
+    "help": "Columns: first name, last name, phone, email, position, place (code or name), hourly pay (or “1000/160” = 1000 € for 160 h).",
+    "department": "Department",
+    "logins": "Create logins and invites",
+    "createRoles": "Create positions that don't exist yet",
+    "paste": "Paste the rows here",
+    "example": "Ivan\tPetrov\t0888 123 456\tivan@mail.bg\tWaiter\tR1\t6.50",
+    "columns": "Copy the cells in Excel and paste – tabs, semicolons or commas all work. A first row with column names is skipped.",
+    "col": {
+      "firstName": "First name",
+      "lastName": "Last name",
+      "phone": "Phone",
+      "email": "Email",
+      "position": "Position",
+      "place": "Place",
+      "pay": "Pay"
+    },
+    "go": "Create {count, plural, one {# person} other {# people}}",
+    "fix": "{count, plural, one {# row needs} other {# rows need}} fixing – nothing was created.",
+    "sent": "invite sent",
+    "useSlips": "no email – use the printed slips",
+    "printSlips": "Print invite slips",
+    "done": "{count, plural, one {# person} other {# people}} added",
+    "errName": "first and last name needed",
+    "errPay": "pay not understood",
+    "errEmail": "email not valid",
+    "errRole": "position not found",
+    "errPlace": "place not found"
+  },
+  "slips": {
+    "title": "Print invite slips",
+    "none": "Everyone in this department has already logged in.",
+    "app": "Hotel Schedules",
+    "scan": "Scan to choose your password",
+    "username": "Username",
+    "telegram": "Telegram: messages to your phone",
+    "valid": "The link works once and for 7 days. Printing again makes new links.",
+    "steps": "1. Scan the code with your phone camera. 2. Choose your password. 3. Done – you see your schedule.",
+    "allReached": "The {count} people who haven't logged in yet got their invite by email or Telegram – no slips needed.",
+    "printAll": "Print slips for them anyway (the links they got stop working)"
+  },
+  "progress": {
+    "title": "Setup progress",
+    "help": "One row per department. ✓ done, ○ still to do – click to open that step.",
+    "manager": "Manager",
+    "staff": "Staff",
+    "logins": "Logged in",
+    "schedule": "Schedule",
+    "activeOf": "{n} of {of}",
+    "none": "none",
+    "published": "published",
+    "notPublished": "not published",
+    "notLoggedIn": "{count, plural, one {# not logged in yet} other {# not logged in yet}}"
   }
 }

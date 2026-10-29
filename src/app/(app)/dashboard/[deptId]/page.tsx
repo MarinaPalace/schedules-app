@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { addMonths, isMonth, monthLabel, monthOf } from "@/lib/calendar";
-import { budgetStatus, computeMonth } from "@/lib/costs";
+import { budgetStatus, computeMonth, moneyBasisFor } from "@/lib/costs";
 import { todayISO } from "@/lib/dates";
 import { formatEur } from "@/lib/money";
 import { getVisibleDepartments, requireUser } from "@/lib/session";
@@ -14,13 +14,14 @@ import { getLocale, getTranslations } from "next-intl/server";
 export default async function DepartmentDashboard({ params, searchParams }: PageProps<"/dashboard/[deptId]">) {
   const user = await requireUser(["manager", "top_manager", "owner", "accountant", "admin"]);
   const { deptId } = await params;
-  const sp = (await searchParams) as { month?: string };
+  const sp = (await searchParams) as { month?: string; basis?: string };
   const [t, locale] = await Promise.all([getTranslations(), getLocale()]);
   const dept = (await getVisibleDepartments(user)).find((d) => d.id === deptId);
   if (!dept) notFound();
   const today = todayISO();
   const month = isMonth(sp.month) ? sp.month : monthOf(today);
-  const m = (await computeMonth([dept.id], month)).get(dept.id)!;
+  const basis = moneyBasisFor(user.role, sp.basis);
+  const m = (await computeMonth([dept.id], month, { basis })).get(dept.id)!;
   const status = budgetStatus(m);
 
   const data = cumulativeCost([m], today);
@@ -33,8 +34,8 @@ export default async function DepartmentDashboard({ params, searchParams }: Page
           <h1 className="page-title mr-2">{dept.name}</h1>
           <PeriodNav
             label={monthLabel(month, locale)}
-            prev={href(`/dashboard/${dept.id}`, { month: addMonths(month, -1) })}
-            next={href(`/dashboard/${dept.id}`, { month: addMonths(month, 1) })}
+            prev={href(`/dashboard/${dept.id}`, { month: addMonths(month, -1), basis: sp.basis })}
+            next={href(`/dashboard/${dept.id}`, { month: addMonths(month, 1), basis: sp.basis })}
           />
           <Link href={href("/schedule", { dept: dept.id, view: "month", month })} className="btn btn-sm">{t("nav.schedule")}</Link>
           <Link href={href("/timesheet/month", { dept: dept.id, month })} className="btn btn-sm">{t("nav.forma76")}</Link>
@@ -43,7 +44,7 @@ export default async function DepartmentDashboard({ params, searchParams }: Page
 
       <div className="grid gap-3 sm:grid-cols-3">
         <div className="card">
-          <div className="text-xs text-gray-500">{t("common.budget")}</div>
+          <div className="text-xs text-gray-500">{t(basis === "pay" ? "money.payBudget" : "common.budget")}</div>
           <div className="mt-1 text-xl font-semibold tabular-nums">{m.budgetCents !== null ? formatEur(m.budgetCents) : "—"}</div>
           {m.budgetHours !== null && <div className="text-xs text-gray-500">{t("dashboard.plannedHours", { hours: m.budgetHours })}</div>}
         </div>

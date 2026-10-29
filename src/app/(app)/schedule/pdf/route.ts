@@ -11,6 +11,7 @@ import { formatDate, formatDateTime, todayISO } from "@/lib/dates";
 import { isPublished, loadCutoffs, loadPublishedSchedule } from "@/lib/published";
 import { renderSchedulePdf, type PdfCell } from "@/lib/schedule-pdf";
 import { loadLocations } from "@/lib/org";
+import { getHotelName } from "@/lib/settings";
 import { getCurrentUser, getEmployeeForUser, getVisibleDepartments } from "@/lib/session";
 import { formatHours } from "@/lib/shifts";
 
@@ -89,7 +90,7 @@ export async function GET(request: Request) {
 
   const pdf = await renderSchedulePdf({
     title: `${t("schedule.title")} · ${dept.name}${place ? ` · ${place.code} ${place.name}` : ""}`,
-    subtitle: unpublished ? `${period} · ${t("pdf.includesUnpublished")}` : period,
+    subtitle: [await getHotelName(), period, unpublished ? t("pdf.includesUnpublished") : null].filter(Boolean).join(" · "),
     generated: t("pdf.generated", { when: formatDateTime(new Date()) }),
     days: dates.map((d) => ({
       top: weekdayShort(d, locale),

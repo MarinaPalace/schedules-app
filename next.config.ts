@@ -9,7 +9,7 @@ const nextConfig: NextConfig = {
   cacheComponents: false,
   serverExternalPackages: ["@electric-sql/pglite", "pdfkit"],
   // Fonts embedded in the schedule PDF are read from disk at runtime.
-  outputFileTracingIncludes: { "/schedule/pdf": ["./src/fonts/**"] },
+  outputFileTracingIncludes: { "/schedule/pdf": ["./src/fonts/**"], "/admin/employees/slips": ["./src/fonts/**"] },
   turbopack: {
     rules: {
       "*.css": {

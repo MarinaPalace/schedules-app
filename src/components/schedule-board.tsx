@@ -6,6 +6,8 @@ import { useLocale, useTranslations } from "next-intl";
 import { copyPreviousWeek, createDepartmentLegend, publishSchedule, saveCells, type Tool } from "@/app/(app)/schedule/actions";
 import { cellLabel, customCodes, CUSTOM_COLOR, EMPTY_CELL, paidAt, placesOf, viewOfTool, type CellView, type CustomLegendRow, type TemplateLite, type ToolLite } from "@/lib/cell-view";
 import { roleTag, type LocationLite, type RoleLite } from "@/lib/org-types";
+import { dayGaps, type NeedRow } from "@/lib/needs-rules";
+import { dayBlocks } from "@/lib/coverage";
 import { ABSENCE_CODES } from "@/lib/codes";
 import { addDays, dayLabel, daysBetween, isWeekend, mondayOf, weekdayShort } from "@/lib/calendar";
 import { costCents, rateAt, type RateBookJSON } from "@/lib/rates";
@@ -45,6 +47,10 @@ type Props = {
   unpublished?: Record<string, true>;
   /** Link to the PDF of the shown period. */
   pdfHref?: string;
+  /** "pay" (managers: what staff receive) or "cost" (total cost incl. the owner's factor). */
+  basis?: "pay" | "cost";
+  /** Staffing needs per date and location (empty when none are set). */
+  needs?: Record<string, Record<string, NeedRow[]>>;
 };
 
 type Change = { employeeId: string; date: string; prev: ToolLite };
@@ -111,6 +117,18 @@ export function ScheduleBoard(props: Props) {
     return parts.join(" · ");
   };
   const elsewhere = (c: CellView) => !!place && c.kind === "shift" && !placesOf(c).includes(place);
+
+  // Needs vs plan: which days are short (at the location being planned, or anywhere).
+  const needs = props.needs ?? {};
+  const withRole = (c: CellView | undefined, roleId: string | null | undefined) => (c?.kind === "shift" ? { segments: c.segments, roleId: c.roleId === undefined ? (roleId ?? null) : c.roleId } : undefined);
+  const gapsOn = (d: string) => {
+    const day = needs[d];
+    if (!day) return [];
+    const scoped = place ? (day[place] ? { [place]: day[place] } : {}) : day;
+    if (!Object.keys(scoped).length) return [];
+    const blocks = allEmployees.map((e) => dayBlocks(withRole(cells[k(e.id, d)], e.roleId), withRole(cells[k(e.id, addDays(d, -1))], e.roleId)));
+    return dayGaps(blocks, scoped).missing;
+  };
   const cellsRef = useRef(cells);
   useEffect(() => {
     cellsRef.current = cells;
@@ -291,6 +309,11 @@ export function ScheduleBoard(props: Props) {
                   <span className="text-xs uppercase opacity-80">{weekdayShort(d, locale)}</span>
                   <span className="text-lg leading-tight font-bold">{d.slice(8, 10)}</span>
                   <span className={`text-[11px] ${active ? "opacity-90" : "text-gray-500"}`}>👤 {working}</span>
+                  {gapsOn(d).length > 0 && (
+                    <span className="text-[11px] font-bold text-red-600" title={t("needs.dayShort")}>
+                      ⚠
+                    </span>
+                  )}
                 </button>
               );
             })}
@@ -307,11 +330,11 @@ export function ScheduleBoard(props: Props) {
       {budget && showCost && (
         <div className={`card flex flex-wrap items-center gap-x-5 gap-y-1 py-2.5 text-sm ${over ? "border-red-200 bg-red-50" : ""}`}>
           <span>
-            <span className="text-gray-500">{t("schedule.monthProjected")} </span>
+            <span className="text-gray-500">{t(props.basis === "pay" ? "money.monthProjectedPay" : "schedule.monthProjected")} </span>
             <b className="tabular-nums">{formatEur(projected)}</b>
           </span>
           <span>
-            <span className="text-gray-500">{t("common.budget")}: </span>
+            <span className="text-gray-500">{t(props.basis === "pay" ? "money.payBudget" : "common.budget")}: </span>
             <b className="tabular-nums">{budget.budgetCents ? formatEur(budget.budgetCents) : t("common.notSet")}</b>
           </span>
           {budget.budgetCents ? (
@@ -439,6 +462,7 @@ export function ScheduleBoard(props: Props) {
           places={places}
           roles={roles}
           place={place}
+          needs={needs[day]}
           onOpen={editable ? (employeeId, date) => setSheet({ employeeId, date }) : undefined}
         />
       )}
@@ -589,12 +613,17 @@ export function ScheduleBoard(props: Props) {
                       }`}
                     >
                       {dayLabel(d, locale).split(" ")[0]}
+                      {gapsOn(d).length > 0 && (
+                        <span className="ml-0.5 text-red-600" title={gapsOn(d).map((g) => `${g.from}–${g.to}: −${g.missing} ${roles.find((r) => r.id === g.roleId)?.name ?? ""}`).join(" · ")}>
+                          ⚠
+                        </span>
+                      )}
                       <br />
                       {d.slice(8, 10)}
                     </th>
                   ))}
                   <th className="border-b border-l border-gray-200 px-2 py-2 text-right text-xs font-medium text-gray-500">{t("common.hours")}</th>
-                  {showCost && <th className="border-b border-l border-gray-200 px-2 py-2 text-right text-xs font-medium text-gray-500">{t("common.cost")}</th>}
+                  {showCost && <th className="border-b border-l border-gray-200 px-2 py-2 text-right text-xs font-medium text-gray-500">{t(props.basis === "pay" ? "money.pay" : "common.cost")}</th>}
                 </tr>
               </thead>
               <tbody>
@@ -662,7 +691,7 @@ export function ScheduleBoard(props: Props) {
               </tfoot>
             </table>
           </div>
-          {showCost && <p className="text-xs text-gray-500">{t("schedule.footnote", { factor })}</p>}
+          {showCost && <p className="text-xs text-gray-500">{props.basis === "pay" ? t("schedule.footnotePay") : t("schedule.footnote", { factor })}</p>}
         </div>
       )}
 
@@ -700,6 +729,9 @@ export function ScheduleBoard(props: Props) {
               disabled={publishing || status.saving > 0 || unpublishedCount === 0}
               onClick={() =>
                 startPublish(async () => {
+                  // Short of the staffing needs on coming days? Ask before staff see it.
+                  const short = dates.filter((d) => d >= today && gapsOn(d).length > 0).length;
+                  if (short && !confirm(t("needs.publishWarning", { count: short }))) return;
                   const res = await publishSchedule(departmentId, dates[0], dates[dates.length - 1]);
                   setStatus((s) => ({ ...s, error: res.error ?? null }));
                   router.refresh();

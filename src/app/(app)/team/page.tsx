@@ -9,7 +9,7 @@ import { key, loadSchedule, loadShiftTemplates } from "@/lib/data";
 import { getDayLabels } from "@/lib/day-labels";
 import { describeDay } from "@/lib/describe";
 import { todayISO } from "@/lib/dates";
-import { getVisibleDepartments, PEOPLE_ADMINS, requireUser, type Role } from "@/lib/session";
+import { getVisibleDepartments, requireUser, STAFF_EDITORS, type Role } from "@/lib/session";
 import { formatHours } from "@/lib/shifts";
 import { LinkTabs, href } from "@/components/toolbar";
 
@@ -21,7 +21,7 @@ export default async function TeamPage({ searchParams }: PageProps<"/team">) {
   if (!deps.length) return <p className="text-sm text-gray-500">{t("common.noDepartments")}</p>;
   const shown = sp.dept ? deps.filter((d) => d.id === sp.dept) : deps;
   const today = todayISO();
-  const canEdit = PEOPLE_ADMINS.includes(me.role);
+  const canEdit = STAFF_EDITORS.includes(me.role);
 
   const staff = await db
     .select({ e: employees, role: user.role })

@@ -222,9 +222,178 @@ Dashboard numbers per department & month:
 
 **Phase 12 verification (2026-10-29):** typecheck, lint, 30 unit tests (incl. counts per role/place, a split shift at two places counted at one at a time, hours at a place sharing the break), build, `db:check`. Browser run (24 checks): setup by the department's manager (add location, duplicate code refused, usual place), per-location schedule rows, split shift R1+B1, shift in another role, all kept after reload, timeline 09–11 per role at R1 (3/0/1), no waiter at R1 at 16:00 while B1 has 1, role filter, no overflow on a phone, location PDF, Forma 76 approval keeps the role → report shows 8 h outside the main role, CSV, accountant access. All earlier suites re-run on fresh data: pass.
 
+### Phase 13 — Onboarding from an empty database + staffing needs (done 2026-10-29)
+
+Research, plan and review (2026-10-29), written after setting up from an empty database. Built and verified the same day (unit tests for usernames, pay parsing, Excel rows and need rules; an end-to-end run from an empty database: owner's welcome → GM → department with a new manager → locations → Excel import + invite slips → needs → schedule gaps, publish warning, dashboards, budgets, progress board, employee view; all earlier end-to-end suites re-run). Fixes found while testing: the welcome kept the GM's invite panel after the refresh; the “new department” and “add employee” boxes no longer close after the first one is created (the invite QR stayed hidden); printed slips only for people without email/Telegram (printing replaces the link, so an emailed invite kept working); managers can't edit their own or other managers' pay; progress board shows the manager's name.
+
+**Decisions (2026-10-29)**
+1. Department managers **can set hourly rates** for their own staff.
+2. The **GM can create departments** (with their managers).
+3. Staffing needs vary by **weekday and by season**, and **one-off dates** (events) are needed now.
+4. The free-text **Position** is replaced by the department's **role list**.
+5. Guidance on the setup is a **must**: the owner knows nothing about the app at first login.
+6. **Pay vs total cost.** The owner's cost factor is **only for the total budget**. Employees and managers see only the **pay** – what the employee gets, e.g. "1000 € for 160 hours" or "6.25 € per hour". No "gross", no taxes, no factor.
+
+**What a new owner meets today (empty database)**
+- After login they land on the dashboard. It only says *"No departments assigned to you."* It doesn't explain what the app does, what to do first, or where.
+- The hotel name exists as a setting but can't be edited anywhere.
+- Managers are created on one page (Users & roles), assigned on another (Departments), and given an employee record on a third (Employees). The required order isn't shown.
+- On *Locations & roles*, the number next to each name is the **display order** – unlabelled, it looks like a quantity.
+- A department manager **can't add staff, logins or legends**.
+- "Role" means two things: access level (Employee, Manager, GM…) and job (Waiter…). There's also a free-text "Position".
+
+**The intended flow**
+1. **Owner** (first login) → welcome → hotel profile → creates the **General Manager**. Either continues the setup or hands it over.
+2. **Owner or GM** → creates each **department** with its **manager(s)** in one step. Either continues or hands each department to its manager.
+3. **Department manager** → **locations** → **roles** → **staffing needs** → **shift legends** → **staff** (role, usual place, rate, login) → first schedule → publish.
+4. **Accountant** → invited by owner/GM → notifications, Forma 76 and hours-by-role exports, advances, rates.
+5. **Employees** → get an invite (email / Telegram / printed slip) → choose a password → see their schedule.
+
+#### 13a — Permissions and quick fixes (small)
+- [x] **Managers run their own department(s)**:
+  - create, edit and deactivate employees;
+  - create employee logins and send invite/password links;
+  - set role, usual place and **hourly rate** (with the date it starts – the rate history is kept as today).
+
+  Managers can't create managers, and can't move people to another department; the GM does moves.
+- [x] **Rate changes are visible:** every change is in the audit log (as today), and the GM is notified when a manager changes a rate.
+- [x] Managers manage their department's **shift legends**. Hotel-wide legends stay with owner/GM.
+- [x] The **GM** can create and rename departments and assign their managers. The owner keeps hotel settings, the GM's login and email/Telegram set-up.
+- [x] **Wording:**
+  - access level = **"Access"** (Достъп); job = **"Position"** (Длъжност), chosen from the role list;
+  - the old free-text field is removed;
+  - a helper turns existing free-text positions into roles in one click (per department, with a preview).
+- [x] Order fields: drop the number box; new items go to the end; ↑/↓ to reorder.
+- [x] **Automatic usernames** from the name, with Cyrillic → Latin transliteration (Иван Петров → ivan.petrov). Editable; duplicates get a number.
+- [x] **Hotel profile** (owner): hotel name (shown in the header, PDFs and messages), default language for new accounts, employer cost factor (exists today, under Budgets).
+
+#### 13a+ — Pay for staff and managers, total cost only in the budget (decision 6)
+Today the factor is multiplied into the money managers see: the schedule's cost column, the budget bar, their dashboard, and a footnote that names the factor. Employees don't get the factor, but their pay is labelled **"gross"**, with a note about taxes and contributions.
+- [x] **The hourly rate means pay:** what the employee receives for an hour ("Hourly pay").
+  - It can also be entered as a monthly amount + hours, e.g. 1000 € for 160 h → 6.25 €/h.
+  - The rate history (with start dates) stays as it is.
+- [x] **Employees** see "Your pay (estimate)":
+  - earned so far, expected this month and the rate per hour;
+  - advances are taken off the same amount;
+  - the words "gross", "taxes" and "contributions" are removed from their screens.
+- [x] **Managers** see pay only:
+  - hours × rate in the schedule's cost column, totals and their dashboard;
+  - no factor, and no footnote mentioning it.
+- [x] **Budget bar for managers:** the budget is set as a total cost, so it's shown converted to pay (budget ÷ factor) and called **"pay budget"**. The comparison stays correct without showing the factor.
+- [x] **Owner, GM and accountant** see both columns: *pay* and *total cost* (pay × factor).
+  - Budgets are entered and compared as total cost, as today.
+  - The dashboard can switch between "pay" and "total cost".
+- [x] **The factor** moves to the hotel profile, with a plain explanation: "total cost to the hotel for every 1 € of pay".
+  - Because rates now mean the take-home pay, the right factor is usually **higher than 1.19**; the accountant can tell the owner the number.
+  - Changing it changes only budgets and totals, never what employees see.
+- [x] Stored data doesn't change; only what each role sees and the wording. Check before entering real rates: the rates must be entered as pay (no rates are in the database yet).
+
+#### 13b — First-run guidance (a must)
+- [x] **Welcome wizard** the first time an owner/admin logs in to an empty hotel. 3–4 short screens, works on a phone, can be left and resumed:
+  1. *What this app does*, in one screen: plan shifts → employees see them → daily Forma 76 → labour cost vs budget. Plus who does what (owner, GM, managers, accountant, staff).
+  2. *Your hotel*: name, language, cost factor (explained in plain words, default 1.19).
+  3. *Who sets it up?* "I'll do it myself" or "Invite my General Manager" (name, username, email → invite link + QR).
+  4. Optional: *Email and Telegram* – only if it's set up; else a link to how-to and "later".
+
+  Ends on the setup checklist.
+- [x] **Setup checklist** ("Getting started"), different per role.
+  - Each step says **why** it's needed, links to the page, and ticks itself when done.
+  - Progress like "4 of 7"; it can be hidden once everything is done.
+  - *Owner:* hotel profile · GM · departments + managers · budgets · email/Telegram · accountant.
+  - *GM:* departments + managers · each department's progress (see 13c board) · budgets · accountant.
+  - *Manager:* locations · roles · staffing needs · legends · staff + logins · first schedule · publish.
+  - *Accountant:* notifications · where Forma 76 / hours-by-role exports are · advances.
+- [x] **First-login intro for every other role.** 2–3 cards on what they can do and where. For a manager: "your department is ready to set up – start here". Shown once; can be reopened from the menu.
+- [x] **Helpful empty pages.** Every list that's empty says what belongs there, why, and has the one button to add the first item. Nothing should say only "nothing here".
+  - Example: *No locations yet – add the restaurants and bars of F&B, each will get its own schedule. [+ Add location]*
+- [x] **Next-step prompts** after each key action. E.g. after creating a department: "Next: add its manager" / "Next: add its locations".
+- [x] **"?" help on each page**: two or three sentences in the user's language on what the page is for, with a link to the guide.
+- [x] **Guide page** (Help): the flow above as a simple picture, one short section per role, and a "common questions" list (publish, swaps, Forma 76, advances, PDFs).
+- [x] All guidance in **BG / EN / RU**, phone-first, plain words – no technical terms.
+
+#### 13c — Departments and staff onboarding
+- [x] **Department wizard** (owner/GM):
+  - name;
+  - managers: pick existing people, or create a new manager with name/username/email. This makes the login + employee record + assignment and sends the invite;
+  - optionally **copy the set-up of another department** (roles, legends, locations without staff).
+- [x] **Setup progress board** (owner/GM). One row per department, so the GM sees at once who's behind:
+  - manager invited / logged in;
+  - locations;
+  - roles;
+  - staffing needs;
+  - staff count;
+  - logins activated;
+  - first schedule published.
+- [x] **Presets** when creating a department; tap to add, rename freely.
+  - Roles – F&B: Waiter, Helper waiter, Bartender, Assistant manager, Cook. Housekeeping: Maid, Laundry, Supervisor. Front office: Receptionist, Night auditor, Concierge.
+  - Common legends: morning / afternoon / night.
+- [x] **Bulk add staff**: paste rows from Excel. Columns: name, phone, email, position (role), usual place, rate. Preview with errors marked, then create all, inviting those with email.
+- [x] **Invite status** per department: invited / link opened / logged in / never logged in. **Resend**, one by one or to everyone not logged in yet.
+- [x] **Printable invite slips** (PDF): one per employee with name, username, password-link QR and Telegram QR. For staff without email.
+
+#### 13d — Staffing needs per location (how many of each role, when)
+- [x] **Seasons** (hotel-wide, owner/GM): named date ranges reused by every department, e.g. *Low 01.11–31.03*, *High 01.06–30.09*.
+- [x] **Staffing need** = location + role + time range + number of people.
+  - Defined for a **weekday set** (e.g. Mon–Fri, Sat–Sun) and optionally a **season**.
+  - **One-off dates** (events, e.g. a wedding at R2 on 14.06) replace the weekday/season needs of that location on that date.
+- [x] **Which need applies on a date:** one-off date › season › all-year. Within each, the weekday rule. The editor and the timeline always show *which* rule applies ("High season, Sat–Sun").
+- [x] History kept, like budgets: changes are new rows, the latest wins.
+- [x] **Editor per location** (manager): a grid.
+  - Rows = time blocks (06:30–08:30, 08:30–14:30…); columns = the department's roles; cells = count.
+  - Tabs for the weekday sets and seasons.
+  - "Copy to other days / season / location".
+  - Example: R2 · High season · Mon–Sun:
+    - 06:30–08:30: 2 Waiters + 1 Assistant manager;
+    - 08:30–14:30: 5 Waiters + 1 Assistant manager.
+  - **The roles with a number at a location are the roles that work there.**
+- [x] **Needed vs planned** wherever it matters:
+  - timeline: a "needed" line per role, red/green slots ("08:30–09:00 Waiters 4 / 5");
+  - ⚠ on days with gaps in the Table/Day views;
+  - dashboard list of gaps ("R2 Tue 06:30–08:30: 1 waiter missing");
+  - a warning before **Publish**.
+
+  Counting uses `src/lib/coverage.ts` (`dayBlocks`, `pick`, `minStaff`), already built and tested.
+- [x] **Over-staffing** shown too (with cost), so managers can trim as well as fill.
+- [x] **Cost of the needs:** needs × average rate of the role × cost factor → planned monthly cost per location/department. A starting point for budgets, shown next to the budget form.
+- [ ] Phase 8 (AI) uses the needs as its main input: fill the gaps with the right roles at the right places, then the manager reviews.
+
+#### 13e — Demo database from real set-up data
+- [x] `npm run db:save-demo`: saves the local database (the data entered by the owner) as the demo snapshot.
+- [x] `npm run db:reset` then restores that snapshot – plus any newer migrations – instead of the built-in example. `npm run db:empty` stays for a clean start.
+
+#### Who does what after this phase
+| | Owner / admin | GM | Department manager | Accountant |
+|---|---|---|---|---|
+| Hotel profile, email/Telegram, seasons, **cost factor** | ✓ | seasons | – | – |
+| Money shown | pay + total cost | pay + total cost | **pay only** (budget as "pay budget") | pay + total cost |
+| Create the GM login | ✓ | – | – | – |
+| Accountant logins | ✓ | ✓ | – | – |
+| Departments + their managers | ✓ | ✓ | – | – |
+| Locations, roles, staffing needs, legends | ✓ all | ✓ all | ✓ own dept | – |
+| Staff, employee logins, **hourly rates** | ✓ all | ✓ all | ✓ own dept | see |
+| Move staff between departments | ✓ | ✓ | – | – |
+| Budgets | ✓ | ✓ | see | see |
+| Schedules, Forma 76 | see / ✓ | ✓ all | ✓ own dept | see |
+| Exports, hours by role, advances | ✓ | ✓ | own dept | ✓ all |
+
+**Assumptions to confirm** (built this way unless you say otherwise)
+- Accountants **see** rates but don't change them.
+- The built-in `admin` login stays a technical account. The welcome wizard suggests the owner creates **their own owner login** and uses it day to day.
+- Seasons are hotel-wide, not per department.
+- Managers see their budget as a **pay budget** (budget ÷ factor) rather than not seeing the budget at all.
+
+**Order and size**
+1. **13a** permissions + quick fixes (S) – unblocks managers today.
+2. **13b** first-run guidance (M) – a must; built together with 13a so every new page has its empty state and "?" from the start.
+3. **13c** department wizard and staff onboarding (M).
+4. **13d** staffing needs (L) – the core of planning.
+5. **13e** demo snapshot (S) – any time, once your set-up data is in.
+
+Each part ends like the earlier phases: unit tests for the rules, plus browser runs. Those cover the full flow from an empty database as owner → GM → manager → accountant → employee, on phone and computer, in BG/EN/RU.
+
 ### Phase 8 — AI schedule assistant (future)
 - [ ] Admin enters an OpenRouter API key (stored server-side only, encrypted; never sent to the browser) and picks a model
-- [ ] Per department and location: staffing needs per role and time (e.g. R1 07:00–12:00 at least 3 waiters + 1 assistant manager) – also useful without AI as a coverage warning; checked with `src/lib/coverage.ts` (`dayBlocks`, `pick`, `minStaff`, `countBySlot`)
+- [ ] Uses the **staffing needs of Phase 13d** (per location, role, time, weekday/season/date) as the target; suggestions are checked with `src/lib/coverage.ts` before they are shown
 - [ ] "Suggest schedule" for a week/month: sends staff, legends, last weeks' pattern, absences, budget and needs (no names/pay if not needed) → model returns cells as JSON
 - [ ] Suggestion is applied as normal **unpublished** changes (amber dots) with one-tap **Undo**; manager reviews, edits, then publishes – the existing save/undo/publish flow already supports this
 - [ ] Log every AI suggestion in the audit trail
@@ -251,7 +420,7 @@ Dashboard numbers per department & month:
 - [x] Employer cost factor → 1.19 for now; owner/admin change it in **Budgets → Employer cost factor**
 - [x] Who decides advances → department manager, GM **or accounting** (one decision); accounting then marks it as given (decided 2026-10-29)
 - [x] Who may see the department schedule → **every employee** (decided 2026-10-29)
-- [x] Managers add/edit employees → **No**; admin, owner and GM can (decided 2026-10-28)
+- [x] Managers add/edit employees → **Yes, for their own department** (changed 2026-10-29; was "No" on 2026-10-28) – see Phase 13a
 - [x] Employees see changes → **only after the manager publishes** (decided 2026-10-28, built)
 
 - [x] Managers approve their **own** Forma 76 day → **Yes** (decided 2026-10-28; every approval is in the audit log)
@@ -285,3 +454,5 @@ Local database notes:
 - 2026-10-29 — Phase 10: email + Telegram notifications, password set-up/reset links instead of typed passwords, My account page, Admin → Notifications.
 - 2026-10-29 — Phase 11: break + "save as legend" for custom hours, automatic legend codes (P1…), Timeline view with staff per half hour and "who is at work from–to".
 - 2026-10-29 — Phase 12: locations and roles per department, per-location schedules/PDF, place per block and role per shift, timeline per role/location, hours-by-role report for pay.
+- 2026-10-29 — Phase 13 planned (not built): permissions for managers (staff, logins, rates, legends), first-run guidance for the owner and every role, department wizard and staff onboarding, staffing needs by weekday/season/date per location, demo snapshot. Decisions 1–6 recorded (6: cost factor only for the total budget; staff and managers see pay only).
+- 2026-10-29 — Phase 13 built: welcome wizard, per-role checklists and intros, guide and “?” help, hotel profile + seasons, department wizard with presets, progress board, managers run their own staff/pay/legends (GM told about pay changes), Excel import, invite status/resend and printable slips, staffing needs per location (weekday/season/date) with gaps in the schedule, timeline, publish, dashboard and budgets; staff and managers see pay only. Migration 0008.

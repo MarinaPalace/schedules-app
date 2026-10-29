@@ -57,6 +57,13 @@
       "when": 1793269222049,
       "tag": "0007_roles_locations",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1793285350154,
+      "tag": "0008_onboarding_staffing_needs",
+      "breakpoints": true
     }
   ]
 }
