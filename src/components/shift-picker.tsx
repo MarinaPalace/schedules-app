@@ -3,9 +3,13 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
-import type { CellView, TemplateLite, ToolLite } from "@/lib/cell-view";
+import { placesOf, type CellView, type TemplateLite, type ToolLite } from "@/lib/cell-view";
+import type { LocationLite, RoleLite } from "@/lib/org-types";
 import { ABSENCE_CODES, type DayLabels } from "@/lib/codes";
 import { formatHours, formatSegments, paidMinutes, parseSegments } from "@/lib/shifts";
+
+export type Placed = { locations?: (string | null)[]; roleId?: string | null };
+const BLOCKS = 3;
 
 type Props = {
   title: string;
@@ -16,7 +20,13 @@ type Props = {
   historyHref?: string;
   onPick: (tool: ToolLite) => void;
   /** Saves the custom hours as a new legend and applies it; resolves to an error message or null. */
-  onSaveLegend?: (legend: { text: string; breakMinutes: number; code: string; name: string; color: string }) => Promise<string | null>;
+  onSaveLegend?: (legend: { text: string; breakMinutes: number; code: string; name: string; color: string }, placed: Placed) => Promise<string | null>;
+  /** Places and roles of the department (both optional). */
+  places?: LocationLite[];
+  roles?: RoleLite[];
+  /** Place used when the cell has none yet (the location being planned, or the person's usual one). */
+  defaultPlace?: string | null;
+  usualRoleId?: string | null;
   onPrev?: () => void;
   onNext?: () => void;
   onClose: () => void;
@@ -26,8 +36,23 @@ type Props = {
  * Big-button shift chooser. Bottom sheet on phones, dialog on larger screens.
  * Picking a value saves it; the parent then moves on to the next person/day.
  */
-export function ShiftPicker({ title, subtitle, current, templates, labels, historyHref, onPick, onSaveLegend, onPrev, onNext, onClose }: Props) {
+export function ShiftPicker(props: Props) {
+  const { title, subtitle, current, templates, labels, historyHref, onSaveLegend, onPrev, onNext, onClose } = props;
+  const { places = [], roles = [], defaultPlace = null, usualRoleId = null } = props;
   const t = useTranslations();
+  // Where and as what: prefilled from the cell, else the defaults.
+  const cellPlaces = current.kind === "shift" ? placesOf(current) : [];
+  const [place, setPlace] = useState<string | null>(cellPlaces[0] ?? defaultPlace);
+  const [perBlock, setPerBlock] = useState(new Set(cellPlaces).size > 1);
+  const [blockPlaces, setBlockPlaces] = useState<(string | null)[]>(
+    Array.from({ length: BLOCKS }, (_, i) => cellPlaces[i] ?? cellPlaces[0] ?? defaultPlace),
+  );
+  const [role, setRole] = useState(current.roleId && current.roleId !== usualRoleId ? current.roleId : "");
+  const placed = (): Placed => ({
+    ...(places.length ? { locations: perBlock ? blockPlaces : [place] } : {}),
+    ...(roles.length ? { roleId: role || usualRoleId } : {}),
+  });
+  const onPick = (tool: ToolLite) => props.onPick(tool.type === "template" || tool.type === "custom" ? { ...tool, ...placed() } : tool);
   const [custom, setCustom] = useState(current.tool.type === "custom" ? current.tool.text : "");
   const [breakMin, setBreakMin] = useState(current.tool.type === "custom" ? String(current.tool.breakMinutes ?? 0) : "0");
   const [asLegend, setAsLegend] = useState(false);
@@ -42,7 +67,7 @@ export function ShiftPicker({ title, subtitle, current, templates, labels, histo
   async function applyCustom() {
     if (!asLegend || !onSaveLegend) return onPick({ type: "custom", text: custom, breakMinutes });
     setSaving(true);
-    setSaveError(await onSaveLegend({ text: custom, breakMinutes, ...legend }));
+    setSaveError(await onSaveLegend({ text: custom, breakMinutes, ...legend }, placed()));
     setSaving(false);
   }
 
@@ -54,7 +79,19 @@ export function ShiftPicker({ title, subtitle, current, templates, labels, histo
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  const selected = (tool: ToolLite) => JSON.stringify(tool) === JSON.stringify(current.tool);
+  const selected = (tool: ToolLite) =>
+    tool.type === "template" ? current.tool.type === "template" && current.tool.templateId === tool.templateId : JSON.stringify(tool) === JSON.stringify(current.tool);
+  const usualRole = roles.find((r) => r.id === usualRoleId)?.name;
+  const placeSelect = (value: string | null, onChange: (v: string | null) => void, label: string, id: string) => (
+    <select id={id} className="input min-h-11" value={value ?? ""} onChange={(e) => onChange(e.target.value || null)} aria-label={label}>
+      <option value="">{t("places.none")}</option>
+      {places.map((l) => (
+        <option key={l.id} value={l.id}>
+          {l.code} – {l.name}
+        </option>
+      ))}
+    </select>
+  );
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center md:items-center" role="dialog" aria-modal="true" aria-label={title}>
@@ -72,6 +109,56 @@ export function ShiftPicker({ title, subtitle, current, templates, labels, histo
         </div>
 
         <div className="space-y-4 overflow-y-auto px-4 py-4">
+          {(places.length > 0 || roles.length > 0) && (
+            <div className="grid gap-3 rounded-xl bg-gray-50 p-3 sm:grid-cols-2">
+              {places.length > 0 && (
+                <div className="space-y-2">
+                  <label className="label" htmlFor="pick-place">
+                    {t("places.place")}
+                  </label>
+                  {perBlock ? (
+                    blockPlaces.map((bp, i) => (
+                      <div key={i} className="flex items-center gap-2">
+                        <span className="w-16 shrink-0 text-xs text-gray-500">{t("places.block", { n: i + 1 })}</span>
+                        {placeSelect(bp, (v) => setBlockPlaces((b) => b.map((x, j) => (j === i ? v : x))), t("places.block", { n: i + 1 }), `pick-place-${i}`)}
+                      </div>
+                    ))
+                  ) : (
+                    placeSelect(place, setPlace, t("places.place"), "pick-place")
+                  )}
+                  <label className="flex items-center gap-2 text-xs text-gray-600">
+                    <input
+                      type="checkbox"
+                      checked={perBlock}
+                      onChange={(e) => {
+                        setPerBlock(e.target.checked);
+                        if (e.target.checked) setBlockPlaces((b) => b.map((x) => x ?? place));
+                      }}
+                    />
+                    {t("places.perBlock")}
+                  </label>
+                </div>
+              )}
+              {roles.length > 0 && (
+                <div className="space-y-2">
+                  <label className="label" htmlFor="pick-role">
+                    {t("places.role")}
+                  </label>
+                  <select id="pick-role" className="input min-h-11" value={role} onChange={(e) => setRole(e.target.value)}>
+                    <option value="">{usualRole ? t("places.usualRole", { role: usualRole }) : t("places.noRole")}</option>
+                    {roles
+                      .filter((r) => r.id !== usualRoleId)
+                      .map((r) => (
+                        <option key={r.id} value={r.id}>
+                          {r.name}
+                        </option>
+                      ))}
+                  </select>
+                  {role && <p className="text-xs text-amber-700">{t("places.otherRoleNote")}</p>}
+                </div>
+              )}
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
             {templates.map((tpl) => {
               const tool: ToolLite = { type: "template", templateId: tpl.id };

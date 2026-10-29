@@ -4,14 +4,15 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import { copyPreviousWeek, createDepartmentLegend, publishSchedule, saveCells, type Tool } from "@/app/(app)/schedule/actions";
-import { cellLabel, customCodes, CUSTOM_COLOR, EMPTY_CELL, viewOfTool, type CellView, type CustomLegendRow, type TemplateLite, type ToolLite } from "@/lib/cell-view";
+import { cellLabel, customCodes, CUSTOM_COLOR, EMPTY_CELL, paidAt, placesOf, viewOfTool, type CellView, type CustomLegendRow, type TemplateLite, type ToolLite } from "@/lib/cell-view";
+import { roleTag, type LocationLite, type RoleLite } from "@/lib/org-types";
 import { ABSENCE_CODES } from "@/lib/codes";
 import { addDays, dayLabel, daysBetween, isWeekend, mondayOf, weekdayShort } from "@/lib/calendar";
 import { costCents, rateAt, type RateBookJSON } from "@/lib/rates";
 import { formatHours, formatSegments } from "@/lib/shifts";
 import { formatEur } from "@/lib/money";
 import { useDayLabels } from "@/lib/use-day-labels";
-import { ShiftPicker } from "@/components/shift-picker";
+import { ShiftPicker, type Placed } from "@/components/shift-picker";
 import { TimelineView } from "@/components/timeline-view";
 import { setPreferenceCookie } from "@/lib/client-cookie";
 
@@ -20,7 +21,10 @@ export type BoardMode = "day" | "person" | "table" | "timeline";
 type Props = {
   departmentId: string;
   dates: string[];
-  employees: { id: string; name: string; position: string | null }[];
+  employees: { id: string; name: string; position: string | null; roleId?: string | null; homeLocationId?: string | null }[];
+  /** Places and roles of the department (empty when it has none). */
+  locations?: LocationLite[];
+  roles?: RoleLite[];
   initialCells: Record<string, CellView>;
   approved: Record<string, true>;
   /** Legends offered for this department. */
@@ -45,10 +49,14 @@ type Props = {
 
 type Change = { employeeId: string; date: string; prev: ToolLite };
 const k = (employeeId: string, date: string) => `${employeeId}|${date}`;
-const sameCell = (a: CellView, b: CellView) => a.kind === b.kind && a.label === b.label && a.paidMinutes === b.paidMinutes;
+const sameCell = (a: CellView, b: CellView) =>
+  a.kind === b.kind && a.label === b.label && a.paidMinutes === b.paidMinutes && JSON.stringify(placesOf(a)) === JSON.stringify(placesOf(b)) && (a.roleId ?? null) === (b.roleId ?? null);
+
 
 export function ScheduleBoard(props: Props) {
-  const { departmentId, dates, employees, rates, factor, editable, today, budget, weekStart, showCost = true } = props;
+  const { departmentId, dates, employees: allEmployees, rates, factor, editable, today, budget, weekStart, showCost = true } = props;
+  const places = props.locations ?? [];
+  const roles = props.roles ?? [];
   const t = useTranslations();
   const locale = useLocale();
   const labels = useDayLabels();
@@ -72,6 +80,37 @@ export function ScheduleBoard(props: Props) {
     setBudgetDelta(0);
     // Undo history stays valid across refreshes (it stores the values to restore).
   }
+  // Location being planned: its schedule shows the people who usually work there or have a block there.
+  const [place, setPlace] = useState<string | null>(null);
+  const [everyone, setEveryone] = useState(false);
+  const worksAt = (employeeId: string, at: string) => dates.some((d) => placesOf(cells[k(employeeId, d)] ?? EMPTY_CELL).includes(at));
+  const employees = !place || everyone ? allEmployees : allEmployees.filter((e) => e.homeLocationId === place || worksAt(e.id, place));
+  const empOf = (id: string) => allEmployees.find((e) => e.id === id);
+  const placeName = (id: string | null) => places.find((l) => l.id === id);
+
+  /** New shifts go to the location being planned, else the person's usual place. */
+  const withPlace = (employeeId: string, tool: ToolLite): ToolLite => {
+    if ((tool.type !== "template" && tool.type !== "custom") || tool.locations || !places.length) return tool;
+    const at = place ?? empOf(employeeId)?.homeLocationId ?? null;
+    return { ...tool, locations: [at] };
+  };
+  /** Small tag under a code: place(s) when looking at all locations, and a role that isn't the person's usual one. */
+  const cellTag = (c: CellView, employeeId: string) => {
+    if (c.kind !== "shift") return "";
+    const parts: string[] = [];
+    // All locations: where each shift is. One location: only shifts elsewhere say where ("@B2").
+    if (!place || !placesOf(c).includes(place)) {
+      const codes = [...new Set(placesOf(c).map((id) => placeName(id)?.code).filter(Boolean))];
+      if (codes.length) parts.push(`${place ? "@" : ""}${codes.join("+")}`);
+    }
+    const usual = empOf(employeeId)?.roleId ?? null;
+    if (c.roleId !== undefined && c.roleId !== usual) {
+      const r = roles.find((x) => x.id === c.roleId);
+      if (r) parts.push(roleTag(r.name));
+    }
+    return parts.join(" · ");
+  };
+  const elsewhere = (c: CellView) => !!place && c.kind === "shift" && !placesOf(c).includes(place);
   const cellsRef = useRef(cells);
   useEffect(() => {
     cellsRef.current = cells;
@@ -120,7 +159,8 @@ export function ScheduleBoard(props: Props) {
     const undo: Change[] = [];
     const touched: string[] = [];
     let delta = 0;
-    for (const ch of changes) {
+    for (const raw of changes) {
+      const ch = { ...raw, tool: withPlace(raw.employeeId, raw.tool) };
       const view = viewOfTool(ch.tool, known, labels);
       if (!view) {
         setStatus((s) => ({ ...s, error: t("schedule.customFormat") }));
@@ -185,14 +225,14 @@ export function ScheduleBoard(props: Props) {
     return dates[i] ? { employeeId: s.employeeId, date: dates[i] } : null;
   };
   /** Saves custom hours as a department legend, then puts it in the open cell. */
-  async function saveLegend(legend: { text: string; breakMinutes: number; code: string; name: string; color: string }): Promise<string | null> {
+  async function saveLegend(legend: { text: string; breakMinutes: number; code: string; name: string; color: string }, placed: Placed): Promise<string | null> {
     const target = sheet;
     const res = await createDepartmentLegend(departmentId, legend);
     if (!res.template) return res.error ?? "error";
     const tpl = res.template;
     setAdded((a) => [...a, tpl]);
     if (target) {
-      record(applyMany([{ ...target, tool: { type: "template", templateId: tpl.id } }], [...allTemplates, tpl]));
+      record(applyMany([{ ...target, tool: { type: "template", templateId: tpl.id, ...placed } }], [...allTemplates, tpl]));
       // Move on only if the picker is still open on that cell (it may have been closed while saving).
       setSheet((open) => (open && open.employeeId === target.employeeId && open.date === target.date ? order(target, 1) : open));
     }
@@ -221,9 +261,10 @@ export function ScheduleBoard(props: Props) {
     dates.reduce(
       (acc, d) => {
         const c = cells[k(employeeId, d)];
-        if (c?.paidMinutes) {
-          acc.minutes += c.paidMinutes;
-          acc.cents += cost(employeeId, d, c.paidMinutes);
+        const m = c ? paidAt(c, place) : 0;
+        if (m) {
+          acc.minutes += m;
+          acc.cents += cost(employeeId, d, m);
         }
         return acc;
       },
@@ -282,6 +323,35 @@ export function ScheduleBoard(props: Props) {
         </div>
       )}
 
+      {places.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="-mx-4 flex gap-1.5 overflow-x-auto px-4 sm:mx-0 sm:px-0" role="tablist" aria-label={t("places.filter")}>
+            {[null, ...places.map((l) => l.id)].map((id) => {
+              const l = placeName(id);
+              return (
+                <button
+                  key={id ?? "all"}
+                  type="button"
+                  role="tab"
+                  aria-selected={place === id}
+                  onClick={() => setPlace(id)}
+                  className={`min-h-10 shrink-0 rounded-full border px-3 text-sm font-medium ${place === id ? "border-blue-600 bg-blue-600 text-white" : "border-gray-300 bg-surface text-gray-700"}`}
+                  title={l?.name}
+                >
+                  {l ? `${l.code} · ${l.name}` : t("places.all")}
+                </button>
+              );
+            })}
+          </div>
+          {place && (
+            <label className="flex items-center gap-2 text-sm text-gray-600">
+              <input type="checkbox" checked={everyone} onChange={(e) => setEveryone(e.target.checked)} />
+              {t("places.showEveryone")}
+            </label>
+          )}
+        </div>
+      )}
+
       <div className="flex flex-wrap items-center gap-2">
         <div className="grid w-full grid-cols-4 overflow-hidden rounded-xl border border-gray-300 bg-surface text-sm font-medium sm:inline-flex sm:w-auto" role="tablist">
           {(["day", "person", "table", "timeline"] as const).map((m) => (
@@ -305,7 +375,7 @@ export function ScheduleBoard(props: Props) {
             onClick={() => {
               if (!confirm(t("schedule.copyConfirm"))) return;
               startCopy(async () => {
-                const res = await copyPreviousWeek(departmentId, weekStart, employees.map((e) => e.id));
+                const res = await copyPreviousWeek(departmentId, weekStart, allEmployees.map((e) => e.id));
                 setStatus((s) => ({ ...s, error: res.error ?? null }));
                 router.refresh();
               });
@@ -315,7 +385,7 @@ export function ScheduleBoard(props: Props) {
           </button>
         )}
         {props.pdfHref && (
-          <a href={props.pdfHref} target="_blank" rel="noopener" className="btn" title={t("schedule.pdfHint")}>
+          <a href={place ? `${props.pdfHref}&location=${place}` : props.pdfHref} target="_blank" rel="noopener" className="btn" title={t("schedule.pdfHint")}>
             ⬇ PDF
           </a>
         )}
@@ -347,7 +417,7 @@ export function ScheduleBoard(props: Props) {
                     </span>
                     {unpub[k(e.id, day)] && editable && <span className="h-2 w-2 rounded-full bg-amber-500" title={t("schedule.notPublished")} />}
                     {props.approved[k(e.id, day)] && <span className="text-xs text-green-600">✓</span>}
-                    <Chip c={c} label={label(c)} big />
+                    <Chip c={c} label={label(c)} tag={cellTag(c, e.id)} elsewhere={elsewhere(c)} big />
                   </button>
                 </li>
               );
@@ -366,6 +436,9 @@ export function ScheduleBoard(props: Props) {
           onDay={setPickedDay}
           strip={dayStrip}
           label={label}
+          places={places}
+          roles={roles}
+          place={place}
           onOpen={editable ? (employeeId, date) => setSheet({ employeeId, date }) : undefined}
         />
       )}
@@ -441,7 +514,7 @@ export function ScheduleBoard(props: Props) {
                           <span className="min-w-0 flex-1 truncate text-sm text-gray-600">{c.title}</span>
                           {unpub[k(person, d)] && editable && <span className="h-2 w-2 rounded-full bg-amber-500" title={t("schedule.notPublished")} />}
                           {props.approved[k(person, d)] && <span className="text-xs text-green-600">✓</span>}
-                          <Chip c={c} label={label(c)} big />
+                          <Chip c={c} label={label(c)} tag={cellTag(c, person)} elsewhere={elsewhere(c)} big />
                         </button>
                       </li>
                     );
@@ -554,7 +627,7 @@ export function ScheduleBoard(props: Props) {
                             }}
                             onPointerEnter={() => painting.current && paint(e.id, d)}
                           >
-                            <Chip c={c} label={label(c)} />
+                            <Chip c={c} label={label(c)} tag={cellTag(c, e.id)} elsewhere={elsewhere(c)} />
                             {props.approved[key] && <span className="absolute top-0 right-0.5 text-[9px] text-green-600">✓</span>}
                             {editable && unpub[key] && <span className="absolute top-0.5 left-0.5 h-1.5 w-1.5 rounded-full bg-amber-500" />}
                           </td>
@@ -570,7 +643,7 @@ export function ScheduleBoard(props: Props) {
                 <tr className="bg-gray-50 text-xs text-gray-600">
                   <td className="sticky left-0 z-10 bg-gray-50 px-3 py-2 font-medium">{t("common.totalHours")}</td>
                   {dates.map((d) => {
-                    const m = employees.reduce((sum, e) => sum + (cells[k(e.id, d)]?.paidMinutes ?? 0), 0);
+                    const m = employees.reduce((sum, e) => sum + paidAt(cells[k(e.id, d)] ?? EMPTY_CELL, place), 0);
                     return (
                       <td key={d} className="border-l border-gray-100 text-center tabular-nums">
                         {m ? formatHours(m) : ""}
@@ -593,7 +666,7 @@ export function ScheduleBoard(props: Props) {
         </div>
       )}
 
-      <Legend cells={shown} templates={allTemplates} codes={codes} />
+      <Legend cells={shown} templates={allTemplates} codes={codes} places={places} />
 
       {/* ---------------- ACTION BAR ---------------- */}
       {editable && (
@@ -650,6 +723,10 @@ export function ScheduleBoard(props: Props) {
           historyHref={showCost ? `/schedule/history?employee=${sheet.employeeId}&date=${sheet.date}` : undefined}
           onPick={pick}
           onSaveLegend={editable ? saveLegend : undefined}
+          places={places}
+          roles={roles}
+          defaultPlace={place ?? empOf(sheet.employeeId)?.homeLocationId ?? null}
+          usualRoleId={empOf(sheet.employeeId)?.roleId ?? null}
           onPrev={order(sheet, -1) ? () => setSheet(order(sheet, -1)) : undefined}
           onNext={order(sheet, 1) ? () => setSheet(order(sheet, 1)) : undefined}
           onClose={() => setSheet(null)}
@@ -659,11 +736,13 @@ export function ScheduleBoard(props: Props) {
   );
 }
 
-function Chip({ c, big, label }: { c: CellView; big?: boolean; label: string }) {
+function Chip({ c, big, label, tag, elsewhere }: { c: CellView; big?: boolean; label: string; tag?: string; elsewhere?: boolean }) {
   return (
     <span
       className={`inline-flex items-center justify-center rounded-lg font-semibold ${big ? "h-12 min-w-14 px-2 text-base" : "h-7 w-full min-w-10 text-xs"} ${
-        c.kind === "shift"
+        elsewhere
+          ? "border border-dashed border-gray-300 text-gray-400"
+          : c.kind === "shift"
           ? "text-white"
           : c.kind === "absence"
             ? "bg-amber-100 text-amber-800"
@@ -671,9 +750,16 @@ function Chip({ c, big, label }: { c: CellView; big?: boolean; label: string }) 
               ? "bg-gray-100 text-gray-500"
               : "border border-dashed border-gray-300 text-gray-400"
       }`}
-      style={c.kind === "shift" ? { background: c.color ?? "#64748b" } : undefined}
+      style={c.kind === "shift" && !elsewhere ? { background: c.color ?? "#64748b" } : undefined}
     >
-      {c.kind === "none" ? (big ? "+" : "") : label}
+      {c.kind === "none" ? (
+        big ? "+" : ""
+      ) : (
+        <span className="flex flex-col items-center leading-none">
+          <span>{label}</span>
+          {tag && <span className="mt-0.5 text-[9px] font-medium opacity-90">{tag}</span>}
+        </span>
+      )}
     </span>
   );
 }
@@ -724,7 +810,7 @@ function ToolButton({ active, onClick, children, style }: { active: boolean; onC
 }
 
 /** Shifts used in the shown period – legends and automatic codes for custom hours – with their times. */
-function Legend({ cells, templates, codes }: { cells: CellView[]; templates: TemplateLite[]; codes: Map<string, CustomLegendRow> }) {
+function Legend({ cells, templates, codes, places }: { cells: CellView[]; templates: TemplateLite[]; codes: Map<string, CustomLegendRow>; places: LocationLite[] }) {
   const t = useTranslations();
   const labels = useDayLabels();
   const used = templates.filter((tpl) => cells.some((c) => c.tool.type === "template" && c.tool.templateId === tpl.id));
@@ -749,6 +835,11 @@ function Legend({ cells, templates, codes }: { cells: CellView[]; templates: Tem
         {used.map((tpl) => row(tpl.id, tpl.code, tpl.color, formatSegments(tpl.segments), tpl.breakMinutes, tpl.paidMinutes, tpl.name))}
         {[...codes.values()].map((r) => row(r.key, r.code, CUSTOM_COLOR, r.times, r.breakMinutes, r.paidMinutes, t("schedule.customName")))}
       </ul>
+      {places.length > 0 && (
+        <p className="text-xs text-gray-500">
+          {t("places.place")}: {places.map((l) => `${l.code} ${l.name}`).join(" · ")}
+        </p>
+      )}
     </div>
   );
 }

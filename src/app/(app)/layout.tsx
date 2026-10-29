@@ -28,7 +28,8 @@ type NavKey =
   | "users"
   | "audit"
   | "account"
-  | "notifications";
+  | "notifications"
+  | "setup";
 
 const NAV: Array<{ href: string; key: NavKey; icon: string; admin?: boolean; roles: Role[] }> = [
   { href: "/dashboard", key: "dashboard", icon: "dashboard", roles: ["manager", "top_manager", "owner", "accountant", "admin"] },
@@ -40,6 +41,7 @@ const NAV: Array<{ href: string; key: NavKey; icon: string; admin?: boolean; rol
   { href: "/advances", key: "advances", icon: "advances", roles: ["manager", "top_manager", "owner", "accountant", "admin"] },
   { href: "/me", key: "mySchedule", icon: "mySchedule", roles: ["employee", "manager", "top_manager", "admin"] },
   { href: "/account", key: "account", icon: "bell", roles: ["employee", "manager", "top_manager", "owner", "accountant", "admin"] },
+  { href: "/setup", key: "setup", icon: "team", roles: ["manager", "top_manager", "owner", "admin"] },
   { href: "/admin/budgets", key: "budgets", icon: "budgets", admin: true, roles: ["owner", "admin", "top_manager"] },
   { href: "/admin/departments", key: "departments", icon: "admin", admin: true, roles: ["admin", "owner", "top_manager"] },
   { href: "/admin/employees", key: "employees", icon: "team", admin: true, roles: ["admin", "owner", "top_manager"] },

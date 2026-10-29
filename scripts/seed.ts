@@ -71,6 +71,11 @@ async function main() {
       ["Stefan", "Nikolov", "Bartender", fb.id, 680, false],
       ["Kalina", "Popova", "Waitress", fb.id, 620, false],
       ["Martin", "Iliev", "Cook", fb.id, 850, false],
+      ["Teodora", "Vasileva", "Waitress", fb.id, 640, false],
+      ["Plamen", "Dimov", "Helper waiter", fb.id, 560, false],
+      ["Aleksandar", "Georgiev", "Assistant manager", fb.id, 900, false],
+      ["Yana", "Petkova", "Bartender", fb.id, 680, false],
+      ["Hristo", "Kolev", "Waiter", fb.id, 620, false],
     ];
     for (const [first, last, position, departmentId, rate, hasLogin] of staff) {
       const userId = hasLogin
@@ -111,6 +116,36 @@ async function main() {
       .returning();
     const byCode = Object.fromEntries(shifts.map((t) => [t.code, t]));
 
+    // F&B: roles and places (restaurants and bars); each person gets a usual role and place.
+    const fbRoles = await tx
+      .insert(s.jobRoles)
+      .values(["Waiter", "Helper waiter", "Assistant manager", "Bartender", "Cook"].map((name, i) => ({ departmentId: fb.id, name, sort: i + 1 })))
+      .returning();
+    const fbPlaces = await tx
+      .insert(s.locations)
+      .values([
+        { departmentId: fb.id, code: "R1", name: "Main restaurant", sort: 1 },
+        { departmentId: fb.id, code: "R2", name: "Beach restaurant", sort: 2 },
+        { departmentId: fb.id, code: "B1", name: "Lobby bar", sort: 3 },
+        { departmentId: fb.id, code: "B2", name: "Pool bar", sort: 4 },
+      ])
+      .returning();
+    const role = (n: string) => fbRoles.find((r) => r.name === n)!.id;
+    const at = (c: string) => fbPlaces.find((l) => l.code === c)!.id;
+    const fbPlan: Record<string, [string, string]> = {
+      Stefan: ["Bartender", "B1"],
+      Kalina: ["Waiter", "R1"],
+      Martin: ["Cook", "R1"],
+      Teodora: ["Waiter", "R1"],
+      Plamen: ["Helper waiter", "R1"],
+      Aleksandar: ["Assistant manager", "R1"],
+      Yana: ["Bartender", "B2"],
+      Hristo: ["Waiter", "R2"],
+    };
+    for (const [first, [r, l]] of Object.entries(fbPlan)) {
+      await tx.update(s.employees).set({ jobRoleId: role(r), homeLocationId: at(l) }).where(and(eq(s.employees.firstName, first), eq(s.employees.departmentId, fb.id)));
+    }
+
     // A month of demo schedule: rotating patterns per department.
     const { todayISO } = await import("../src/lib/dates");
     const { monthBounds, monthOf, dateRange } = await import("../src/lib/calendar");
@@ -136,7 +171,8 @@ async function main() {
           workDate: date,
           kind: t ? "shift" : "off",
           shiftTemplateId: t?.id ?? null,
-          segments: t?.segments ?? [],
+          jobRoleId: t ? emp.jobRoleId : null,
+          segments: (t?.segments ?? []).map((x) => ({ ...x, locationId: emp.homeLocationId })),
           breakMinutes: t?.breakMinutes ?? 0,
           paidMinutes: t?.paidMinutes ?? 0,
           departmentId: emp.departmentId,
@@ -152,6 +188,7 @@ async function main() {
             workDate: date,
             version: 1,
             kind: row.kind,
+            jobRoleId: row.jobRoleId,
             segments: fixedSegments,
             breakMinutes: row.breakMinutes,
             paidMinutes: t ? paidMinutes(fixedSegments, row.breakMinutes) : 0,

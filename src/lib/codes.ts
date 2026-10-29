@@ -27,5 +27,7 @@ export type DayLabels = {
   dayOff: string;
   hourUnit: string;
   minuteUnit: string;
+  /** Location names by id, to say where each block is worked (optional). */
+  places?: Record<string, string>;
   absence: Record<string, string>;
 };

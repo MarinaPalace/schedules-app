@@ -4,12 +4,14 @@ import { useState, type ReactNode } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { addDays, dayLabel } from "@/lib/calendar";
 import { EMPTY_CELL, type CellView } from "@/lib/cell-view";
-import { countBySlot, DAY, dayIntervals, minStaff, minutesLabel, presenceBetween, type Interval } from "@/lib/coverage";
+import { countBySlot, DAY, dayBlocks, minStaff, minutesLabel, pick, presenceBetween, type Block } from "@/lib/coverage";
+import type { LocationLite, RoleLite } from "@/lib/org-types";
 
 const k = (employeeId: string, date: string) => `${employeeId}|${date}`;
 const SLOT = 30;
 const TIMES = Array.from({ length: DAY / SLOT + 1 }, (_, i) => i * SLOT);
 const pct = (m: number) => `${(m / DAY) * 100}%`;
+const hhmm = (m: number) => (m === DAY ? "24:00" : minutesLabel(m));
 
 /** Blue, stronger the more people work (readable in light and dark mode). */
 function heat(n: number, max: number) {
@@ -18,9 +20,11 @@ function heat(n: number, max: number) {
   return { background: `rgba(37, 99, 235, ${a.toFixed(2)})`, color: a > 0.5 ? "white" : undefined };
 }
 
+type Person = { id: string; name: string; position: string | null; roleId?: string | null };
+
 /**
- * Who is at work when: a bar per person over the day, staff count per half hour,
- * a "from–to" check (whole time / part of it), and the week as a heat map.
+ * Who is at work when: a bar per person over the day, staff per half hour for every role
+ * (at one location or all), staff per location, a "from–to" check per role, and the week as a heat map.
  */
 export function TimelineView({
   dates,
@@ -31,44 +35,81 @@ export function TimelineView({
   strip,
   label,
   onOpen,
+  places = [],
+  roles = [],
+  place = null,
 }: {
   dates: string[];
-  employees: { id: string; name: string; position: string | null }[];
+  employees: Person[];
   cells: Record<string, CellView>;
   day: string;
   onDay: (d: string) => void;
   strip: ReactNode;
   label: (c: CellView) => string;
   onOpen?: (employeeId: string, date: string) => void;
+  places?: LocationLite[];
+  roles?: RoleLite[];
+  /** Location being planned (null = all). */
+  place?: string | null;
 }) {
   const t = useTranslations("timeline");
   const locale = useLocale();
   const [from, setFrom] = useState(7 * 60);
   const [to, setTo] = useState(12 * 60);
+  // "" = every role; "none" = people without a role
+  const [roleFilter, setRoleFilter] = useState("");
+  const roleWhere = roleFilter === "" ? undefined : roleFilter === "none" ? null : roleFilter;
 
-  const peopleOn = (d: string) =>
-    employees.map((e) => ({ e, c: cells[k(e.id, d)] ?? EMPTY_CELL, iv: dayIntervals(cells[k(e.id, d)]?.segments, cells[k(e.id, addDays(d, -1))]?.segments) }));
-  const people = peopleOn(day);
-  const counts = countBySlot(people.map((p) => p.iv), SLOT);
-  const max = Math.max(1, ...counts);
+  /** Blocks of one person on a day; the role of a shift is the one planned (else the person's usual role). */
+  const blocksOf = (e: Person, d: string): Block[] => {
+    const day = cells[k(e.id, d)];
+    const prev = cells[k(e.id, addDays(d, -1))];
+    const withRole = (c?: CellView) => (c ? { segments: c.segments, roleId: c.roleId === undefined ? (e.roleId ?? null) : c.roleId } : undefined);
+    return dayBlocks(withRole(day), withRole(prev));
+  };
+  const people = employees.map((e) => ({ e, c: cells[k(e.id, day)] ?? EMPTY_CELL, blocks: blocksOf(e, day) }));
+  const here = (blocks: Block[], roleId?: string | null) => pick(blocks, { locationId: place, roleId });
+  const shown = people.filter((p) => roleWhere === undefined || p.blocks.some((b) => b.roleId === roleWhere) || (!p.blocks.length && (p.e.roleId ?? null) === roleWhere));
+
   const range = to > from ? ([from, to] as const) : null;
-  const status = range ? people.map((p) => ({ ...p, presence: presenceBetween(p.iv, range[0], range[1]) })) : [];
+  const status = range ? people.map((p) => ({ ...p, presence: presenceBetween(here(p.blocks, roleWhere), range[0], range[1]) })) : [];
   const full = status.filter((p) => p.presence === "full");
   const part = status.filter((p) => p.presence === "part");
-  const least = range ? minStaff(people.map((p) => p.iv), range[0], range[1]) : 0;
-  const week = dates.map((d) => ({ d, perHour: countBySlot(peopleOn(d).map((p) => p.iv), 60) }));
+  const least = range ? minStaff(people.map((p) => here(p.blocks, roleWhere)), range[0], range[1]) : 0;
+
+  // Rows of the "staff per half hour" table: one per role (+ people without a role), then everybody.
+  const roleRows = [
+    ...roles.map((r) => ({ key: r.id, name: r.name, roleId: r.id as string | null })),
+    ...(people.some((p) => p.blocks.some((b) => b.roleId === null)) || !roles.length ? [{ key: "none", name: roles.length ? t("noRole") : t("staff"), roleId: null }] : []),
+  ].map((r) => ({ ...r, counts: countBySlot(people.map((p) => here(p.blocks, r.roleId)), SLOT) }));
+  const totalCounts = countBySlot(people.map((p) => here(p.blocks, roleWhere)), SLOT);
+  const placeRows = !place
+    ? places.map((l) => ({ key: l.id, name: `${l.code} ${l.name}`, counts: countBySlot(people.map((p) => pick(p.blocks, { locationId: l.id, roleId: roleWhere })), SLOT) }))
+    : [];
+  const max = Math.max(1, ...totalCounts, ...roleRows.flatMap((r) => r.counts), ...placeRows.flatMap((r) => r.counts));
+  const week = dates.map((d) => ({ d, perHour: countBySlot(employees.map((e) => here(blocksOf(e, d), roleWhere)), 60) }));
   const weekMax = Math.max(1, ...week.flatMap((w) => w.perHour));
   const hours = Array.from({ length: 24 }, (_, h) => h);
+  const placeCode = (id: string | null) => places.find((l) => l.id === id)?.code;
 
-  const bar = (iv: Interval, c: CellView, i: number) => (
-    <span
-      key={i}
-      className="absolute top-1 bottom-1 flex items-center overflow-hidden rounded px-1 text-[11px] font-semibold whitespace-nowrap text-white"
-      style={{ left: pct(iv[0]), width: pct(iv[1] - iv[0]), background: c.color ?? "#64748b" }}
-      title={c.title}
-    >
-      {label(c)}
-    </span>
+  const slotRow = (key: string, name: string, counts: number[], strong = false) => (
+    <div key={key} className={`flex ${strong ? "bg-gray-50" : ""}`}>
+      <div className={`sticky left-0 z-10 w-36 shrink-0 truncate px-3 py-1.5 text-xs ${strong ? "bg-gray-50 font-semibold" : "bg-surface font-medium text-gray-600"}`} title={name}>
+        {name}
+      </div>
+      <div className="flex flex-1">
+        {counts.map((n, i) => (
+          <span
+            key={i}
+            className="flex h-8 flex-1 items-center justify-center border-l border-white text-[11px] font-semibold tabular-nums dark:border-gray-900"
+            style={heat(n, max)}
+            title={`${name} ${minutesLabel(i * SLOT)}–${hhmm((i + 1) * SLOT)}: ${n}`}
+          >
+            {n || ""}
+          </span>
+        ))}
+      </div>
+    </div>
   );
 
   return (
@@ -89,15 +130,26 @@ export function TimelineView({
           <select className="input w-auto py-1" value={to} onChange={(e) => setTo(Number(e.target.value))} aria-label={t("to")}>
             {TIMES.slice(1).map((m) => (
               <option key={m} value={m}>
-                {m === DAY ? "24:00" : minutesLabel(m)}
+                {hhmm(m)}
               </option>
             ))}
           </select>
+          {roles.length > 0 && (
+            <select className="input w-auto py-1" value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)} aria-label={t("roleFilter")}>
+              <option value="">{t("allRoles")}</option>
+              {roles.map((r) => (
+                <option key={r.id} value={r.id}>
+                  {r.name}
+                </option>
+              ))}
+              <option value="none">{t("noRole")}</option>
+            </select>
+          )}
         </div>
         {range ? (
           <div className="space-y-1 text-sm" aria-live="polite">
             <p>
-              <b className="text-lg tabular-nums">{least}</b> {t("atLeast", { from: minutesLabel(from), to: to === DAY ? "24:00" : minutesLabel(to) })}
+              <b className="text-lg tabular-nums">{least}</b> {t("atLeast", { from: minutesLabel(from), to: hhmm(to) })}
             </p>
             <p className="text-green-700">
               {t("full", { count: full.length })}
@@ -107,6 +159,15 @@ export function TimelineView({
               <p className="text-amber-700">
                 {t("part", { count: part.length })}: <span className="text-gray-600">{part.map((p) => `${p.e.name} (${label(p.c)})`).join(", ")}</span>
               </p>
+            )}
+            {roles.length > 0 && roleFilter === "" && (
+              <ul className="flex flex-wrap gap-x-4 gap-y-1 pt-1 text-xs text-gray-600">
+                {roleRows.map((r) => (
+                  <li key={r.key}>
+                    <b className="tabular-nums">{minStaff(people.map((p) => here(p.blocks, r.roleId)), range[0], range[1])}</b> {r.name}
+                  </li>
+                ))}
+              </ul>
             )}
           </div>
         ) : (
@@ -128,44 +189,53 @@ export function TimelineView({
             </div>
           </div>
           {/* people */}
-          <div className="relative">
-            {people.map(({ e, c, iv }) => (
-              <div key={e.id} className="flex border-b border-gray-100">
-                <button
-                  type="button"
-                  disabled={!onOpen}
-                  onClick={() => onOpen?.(e.id, day)}
-                  className="sticky left-0 z-10 w-36 shrink-0 truncate bg-surface px-3 py-2 text-left text-sm font-medium disabled:cursor-default"
-                >
-                  {e.name}
-                </button>
-                <div className="relative h-10 flex-1">
-                  {hours.map((h) => (
-                    <span key={h} className={`absolute top-0 bottom-0 border-l ${h % 6 === 0 ? "border-gray-200" : "border-gray-100"}`} style={{ left: pct(h * 60) }} />
-                  ))}
-                  {range && <span className="absolute top-0 bottom-0 bg-blue-500/10" style={{ left: pct(range[0]), width: pct(range[1] - range[0]) }} />}
-                  {iv.map((x, i) => bar(x, c, i))}
-                  {!iv.length && c.kind !== "none" && <span className="absolute top-2.5 left-2 text-xs text-gray-400">{c.title || label(c)}</span>}
-                </div>
+          {shown.map(({ e, c, blocks }) => (
+            <div key={e.id} className="flex border-b border-gray-100">
+              <button
+                type="button"
+                disabled={!onOpen}
+                onClick={() => onOpen?.(e.id, day)}
+                className="sticky left-0 z-10 w-36 shrink-0 truncate bg-surface px-3 py-1.5 text-left text-sm font-medium disabled:cursor-default"
+                title={e.name}
+              >
+                {e.name}
+                {roles.length > 0 && <span className="block truncate text-[11px] font-normal text-gray-500">{roles.find((r) => r.id === (blocks[0]?.roleId ?? e.roleId))?.name}</span>}
+              </button>
+              <div className="relative h-11 flex-1">
+                {hours.map((h) => (
+                  <span key={h} className={`absolute top-0 bottom-0 border-l ${h % 6 === 0 ? "border-gray-200" : "border-gray-100"}`} style={{ left: pct(h * 60) }} />
+                ))}
+                {range && <span className="absolute top-0 bottom-0 bg-blue-500/10" style={{ left: pct(range[0]), width: pct(range[1] - range[0]) }} />}
+                {blocks.map((b, i) => {
+                  const away = !!place && b.locationId !== place;
+                  const code = placeCode(b.locationId);
+                  return (
+                    <span
+                      key={i}
+                      className={`absolute top-1.5 bottom-1.5 flex items-center gap-1 overflow-hidden rounded px-1 text-[11px] font-semibold whitespace-nowrap ${away ? "border border-dashed border-gray-400 text-gray-500" : "text-white"}`}
+                      style={{ left: pct(b.start), width: pct(b.end - b.start), background: away ? undefined : (c.color ?? "#64748b") }}
+                      title={`${c.title}${code ? ` · ${code}` : ""}`}
+                    >
+                      {label(c)}
+                      {code && <span className="font-normal opacity-90">{code}</span>}
+                    </span>
+                  );
+                })}
+                {!blocks.length && c.kind !== "none" && <span className="absolute top-3 left-2 text-xs text-gray-400">{c.title || label(c)}</span>}
               </div>
-            ))}
-          </div>
-          {/* staff per half hour */}
-          <div className="flex bg-gray-50">
-            <div className="sticky left-0 z-10 w-36 shrink-0 bg-gray-50 px-3 py-2 text-xs font-medium text-gray-600">{t("staff")}</div>
-            <div className="flex flex-1">
-              {counts.map((n, i) => (
-                <span
-                  key={i}
-                  className="flex h-9 flex-1 items-center justify-center border-l border-white text-[11px] font-semibold tabular-nums dark:border-gray-900"
-                  style={heat(n, max)}
-                  title={`${minutesLabel(i * SLOT)}–${minutesLabel((i + 1) * SLOT)}: ${n}`}
-                >
-                  {n || ""}
-                </span>
-              ))}
             </div>
+          ))}
+          {/* staff per half hour – by role, then per location */}
+          <div className="border-t border-gray-200">
+            {roles.length > 0 && roleRows.map((r) => slotRow(r.key, r.name, r.counts))}
+            {slotRow("total", roleFilter ? `${t("staff")} · ${roles.find((r) => r.id === roleFilter)?.name ?? t("noRole")}` : t("staff"), totalCounts, true)}
           </div>
+          {placeRows.length > 0 && (
+            <div className="border-t border-gray-200">
+              <div className="px-3 pt-2 text-[11px] font-semibold tracking-wide text-gray-500 uppercase">{t("perPlace")}</div>
+              {placeRows.map((r) => slotRow(r.key, r.name, r.counts))}
+            </div>
+          )}
         </div>
       </div>
 

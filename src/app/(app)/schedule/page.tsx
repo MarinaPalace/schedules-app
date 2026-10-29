@@ -7,6 +7,7 @@ import { getCostFactor, loadDepartmentEmployees, loadRates, loadSchedule, loadSh
 import { todayISO, formatDate } from "@/lib/dates";
 import { canManageDepartment, getVisibleDepartments, requireUser } from "@/lib/session";
 import { loadCutoffs } from "@/lib/published";
+import { loadLocations, loadRoles } from "@/lib/org";
 import { ScheduleBoard, type BoardMode } from "@/components/schedule-board";
 import { LinkTabs, PeriodNav, href } from "@/components/toolbar";
 import { getDayLabels } from "@/lib/day-labels";
@@ -44,7 +45,7 @@ export default async function SchedulePage({ searchParams }: PageProps<"/schedul
   const employees = await loadDepartmentEmployees(dept.id, from, to);
   const ids = employees.map((e) => e.id);
   const budgetMonth = monthOf(view === "week" ? addDays(from, 3) : from);
-  const [schedule, timesheet, templates, allTemplates, rates, factor, editable, costs, cutoff] = await Promise.all([
+  const [schedule, timesheet, templates, allTemplates, rates, factor, editable, costs, cutoff, roles, places] = await Promise.all([
     loadSchedule(ids, from, to),
     loadTimesheet(ids, from, to),
     loadShiftTemplates(dept.id),
@@ -54,6 +55,8 @@ export default async function SchedulePage({ searchParams }: PageProps<"/schedul
     canManageDepartment(user, dept.id),
     computeMonth([dept.id], budgetMonth),
     loadCutoffs([dept.id], from, to),
+    loadRoles([dept.id]),
+    loadLocations([dept.id]),
   ]);
 
   const cells: Record<string, CellView> = {};
@@ -86,7 +89,16 @@ export default async function SchedulePage({ searchParams }: PageProps<"/schedul
         key={`${dept.id}|${from}`}
         departmentId={dept.id}
         dates={dateRange(from, to)}
-        employees={employees.map((e) => ({ id: e.id, name: `${e.lastName} ${e.firstName}`, position: e.position }))}
+        employees={employees.map((e) => ({
+          id: e.id,
+          name: `${e.lastName} ${e.firstName}`,
+          position: e.position,
+          // Usual role/place only within their own department.
+          roleId: e.departmentId === dept.id ? e.jobRoleId : null,
+          homeLocationId: e.departmentId === dept.id ? e.homeLocationId : null,
+        }))}
+        roles={roles.map(({ id, name }) => ({ id, name }))}
+        locations={places.map(({ id, name, code }) => ({ id, name, code }))}
         initialCells={cells}
         approved={approved}
         templates={templates.map(lite)}

@@ -2,7 +2,7 @@
 
 Status legend: `[x]` done · `[~]` in progress / partial · `[ ]` pending
 
-Last updated: 2026-10-29 (Phases 0–5, 7, 9, 10 and 11 done; Phase 8 = AI, planned)
+Last updated: 2026-10-29 (Phases 0–5, 7, 9–12 done; Phase 8 = AI, planned)
 
 ---
 
@@ -57,6 +57,8 @@ schedule_entries (employee_id, work_date, kind shift|off|absence, segments, paid
 timesheet_entries (Forma 76 approved versions, same snapshot fields + version)                            append-only
 correction_requests + correction_decisions                                                                 append-only
 budgets (department_id, month, amount_cents, hours?)                                                       append-only, latest wins
+job_roles (department, name) · locations (department, code, name)          renamed/deactivated, never deleted
+employees.job_role_id / home_location_id (usual role + place) · schedule/timesheet rows carry job_role_id · each segment may carry locationId
 advance_requests + advance_decisions + advance_payments ("given" by accounting)                           append-only
 swap_requests (requester, colleague, date1, date2?, snapshot of published entries) + swap_events          append-only
 settings (key/value)
@@ -208,9 +210,21 @@ Dashboard numbers per department & month:
 
 **Phase 11 verification (2026-10-29):** typecheck, lint, 27 unit tests (incl. coverage: overnight, split shifts, whole/part presence, minimum staff; automatic codes), production build. Browser run (21 checks): break shown and too-long break refused, same hours → same code, legend lines, save-as-legend (applied, in toolbar, duplicate code refused), toolbar custom paint, all kept after reload, timeline 07–12 and 16–20 counts, half-hour count, no overflow on a phone, PDF legend, employee table legend, admin legends page. Earlier suites re-run: all pass. Bugs found and fixed: saving a legend refreshed the board and hid the change; closing the picker while saving made it reopen.
 
+### Phase 12 — Locations (restaurants, bars) and roles (done 2026-10-29)
+- [x] **Locations & roles** page (`/setup`, admin/owner/GM and the department's own manager): roles per department (Waiter, Helper waiter, Assistant manager…), locations with short codes (R1 Main restaurant, B1 Lobby bar…), and each person's **usual role and place**
+- [x] Schedule: **location tabs** – each restaurant/bar has its own schedule (its usual staff + anyone with a block there; "show all staff" to plan others); new shifts go to the location being planned (else the person's usual place). Totals and the **PDF per location** count only the hours worked there
+- [x] Shift picker: **place** (one, or **different place per block** for split shifts worked one after the other) and **role for this shift** (defaults to the usual role). Grid tags: place codes (e.g. "R1+B1") in "All locations", "@B2" for a shift elsewhere, role tag when not the usual role
+- [x] **Timeline per role**: staff per half hour for every role (at the selected location or all), **staff per location**, role filter, "from–to" check with the minimum per role (e.g. 09:00–11:00: 3 Waiter · 0 Helper waiter · 1 Assistant manager)
+- [x] **Hours by role** report (`/timesheet/roles`, also for accounting) + CSV: approved Forma 76 hours per role per person, planned in brackets, **hours outside the main role** highlighted (may be paid at another rate). Approved days keep the role of that day's plan; corrections keep the role
+- [x] Employees see where they work ("09:00–11:00 Main restaurant / 15:00–20:00 Lobby bar"), also in notifications; place codes in their table
+- [x] Swaps and "copy previous week" keep place and role; demo data: F&B with 5 roles, 4 places, 8 staff
+- Not done: pay rates per role (the report shows the hours; accounting applies the rate)
+
+**Phase 12 verification (2026-10-29):** typecheck, lint, 30 unit tests (incl. counts per role/place, a split shift at two places counted at one at a time, hours at a place sharing the break), build, `db:check`. Browser run (24 checks): setup by the department's manager (add location, duplicate code refused, usual place), per-location schedule rows, split shift R1+B1, shift in another role, all kept after reload, timeline 09–11 per role at R1 (3/0/1), no waiter at R1 at 16:00 while B1 has 1, role filter, no overflow on a phone, location PDF, Forma 76 approval keeps the role → report shows 8 h outside the main role, CSV, accountant access. All earlier suites re-run on fresh data: pass.
+
 ### Phase 8 — AI schedule assistant (future)
 - [ ] Admin enters an OpenRouter API key (stored server-side only, encrypted; never sent to the browser) and picks a model
-- [ ] Per department: staffing needs per day/time (e.g. 07:00–12:00 at least 3) – also useful without AI as a coverage warning; checked with `src/lib/coverage.ts` (`minStaff`, `countBySlot`)
+- [ ] Per department and location: staffing needs per role and time (e.g. R1 07:00–12:00 at least 3 waiters + 1 assistant manager) – also useful without AI as a coverage warning; checked with `src/lib/coverage.ts` (`dayBlocks`, `pick`, `minStaff`, `countBySlot`)
 - [ ] "Suggest schedule" for a week/month: sends staff, legends, last weeks' pattern, absences, budget and needs (no names/pay if not needed) → model returns cells as JSON
 - [ ] Suggestion is applied as normal **unpublished** changes (amber dots) with one-tap **Undo**; manager reviews, edits, then publishes – the existing save/undo/publish flow already supports this
 - [ ] Log every AI suggestion in the audit trail
@@ -270,3 +284,4 @@ Local database notes:
 - 2026-10-29 — Phase 9: shift swaps (colleague → manager), employee table + whole-department view, accounting approves/hands out advances, schedule PDF with legend, navigation counters, unpublished-changes warning. End-user review findings listed under Phase 9.
 - 2026-10-29 — Phase 10: email + Telegram notifications, password set-up/reset links instead of typed passwords, My account page, Admin → Notifications.
 - 2026-10-29 — Phase 11: break + "save as legend" for custom hours, automatic legend codes (P1…), Timeline view with staff per half hour and "who is at work from–to".
+- 2026-10-29 — Phase 12: locations and roles per department, per-location schedules/PDF, place per block and role per shift, timeline per role/location, hours-by-role report for pay.

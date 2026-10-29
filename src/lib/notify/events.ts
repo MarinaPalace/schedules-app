@@ -14,6 +14,9 @@ import { loadPublishedSchedule } from "@/lib/published";
 import { loadSwaps, type SwapRow } from "@/lib/swaps";
 import { deliverLater, type NotifyT } from "@/lib/notify/deliver";
 import { departmentDeciders, usersOfEmployees, usersWithRoles } from "@/lib/notify/recipients";
+import { placeNames } from "@/lib/org";
+
+let places: Record<string, string> = {};
 
 // Every function here is fire-and-forget: it runs after the response (see deliverLater).
 
@@ -23,6 +26,7 @@ function labelsFrom(t: NotifyT): DayLabels {
     hourUnit: t("common.hourUnit"),
     minuteUnit: t("common.minuteUnit"),
     absence: Object.fromEntries(ABSENCE_CODES.map((c) => [c, t(`absence.${c}`)])),
+    places,
   };
 }
 
@@ -46,6 +50,7 @@ function swapLines(s: SwapRow, templates: Templates, t: NotifyT, locale: Locale)
 
 async function swap(id: string) {
   const [[s], templates] = await Promise.all([loadSwaps({ ids: [id] }), loadShiftTemplates()]);
+  places = await placeNames();
   return s ? { s, templates } : null;
 }
 
@@ -84,7 +89,7 @@ export function notifyPublished(employeeIds: string[], from: string, to: string)
   const byUser = new Map<string, string>();
   deliverLater(
     async () => {
-      [schedule, templates] = await Promise.all([loadPublishedSchedule(employeeIds, from, to), loadShiftTemplates()]);
+      [schedule, templates, places] = await Promise.all([loadPublishedSchedule(employeeIds, from, to), loadShiftTemplates(), placeNames()]);
       const rows = await Promise.all(employeeIds.map((id) => db.query.employees.findFirst({ where: eq(employees.id, id) })));
       for (const e of rows) if (e?.userId) byUser.set(e.userId, e.id);
       return [...byUser.keys()];

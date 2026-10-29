@@ -16,8 +16,11 @@ import { user } from "./auth-schema";
 
 export * from "./auth-schema";
 
-/** One continuous working block, "HH:MM". If end <= start the block ends the next day. */
-export type Segment = { start: string; end: string };
+/**
+ * One continuous working block, "HH:MM". If end <= start the block ends the next day.
+ * `locationId`: where the block is worked (restaurant, bar…); blocks of one shift may be at different places.
+ */
+export type Segment = { start: string; end: string; locationId?: string | null };
 
 const createdAt = () => timestamp("created_at", { withTimezone: true }).notNull().defaultNow();
 const createdBy = () => text("created_by").references(() => user.id);
@@ -44,6 +47,36 @@ export const departmentManagers = pgTable(
   (t) => [primaryKey({ columns: [t.userId, t.departmentId] })],
 );
 
+/** What people do in a department (Waiter, Helper waiter, Assistant manager…); used to count staff per role. */
+export const jobRoles = pgTable("job_roles", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  departmentId: uuid("department_id")
+    .notNull()
+    .references(() => departments.id),
+  name: text("name").notNull(),
+  sort: integer("sort").notNull().default(0),
+  active: boolean("active").notNull().default(true),
+  createdAt: createdAt(),
+});
+
+/** Places inside a department (Restaurant 1, Lobby bar…); each has its own schedule. */
+export const locations = pgTable(
+  "locations",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    departmentId: uuid("department_id")
+      .notNull()
+      .references(() => departments.id),
+    name: text("name").notNull(),
+    /** Short code shown in grids, e.g. "R1", "B3". */
+    code: text("code").notNull(),
+    sort: integer("sort").notNull().default(0),
+    active: boolean("active").notNull().default(true),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex("locations_dept_code_uq").on(t.departmentId, t.code)],
+);
+
 export const employees = pgTable("employees", {
   id: uuid("id").primaryKey().defaultRandom(),
   userId: text("user_id")
@@ -59,6 +92,9 @@ export const employees = pgTable("employees", {
     .references(() => departments.id),
   /** Unused since every employee may see their department's published schedule (kept: columns are never dropped). */
   canViewDepartment: boolean("can_view_department").notNull().default(false),
+  /** Usual role and place – filled in when planning, can be changed per shift. */
+  jobRoleId: uuid("job_role_id").references(() => jobRoles.id),
+  homeLocationId: uuid("home_location_id").references(() => locations.id),
   active: boolean("active").notNull().default(true),
   createdAt: createdAt(),
 });
@@ -116,6 +152,8 @@ export const scheduleEntries = pgTable(
     note: text("note"),
     /** Set when this row came from an approved shift swap; such rows are visible to employees without publishing. */
     swapRequestId: uuid("swap_request_id"),
+    /** Role worked in this shift (the employee's usual role unless changed for the day). */
+    jobRoleId: uuid("job_role_id").references(() => jobRoles.id),
     createdBy: createdBy(),
     createdAt: createdAt(),
   },
@@ -204,6 +242,8 @@ export const timesheetEntries = pgTable(
     /** Set when this version came from an approved correction. */
     correctionRequestId: uuid("correction_request_id"),
     note: text("note"),
+    /** Role worked (from the schedule), so hours per role can be reported for pay. */
+    jobRoleId: uuid("job_role_id").references(() => jobRoles.id),
     createdBy: createdBy(),
     createdAt: createdAt(),
   },

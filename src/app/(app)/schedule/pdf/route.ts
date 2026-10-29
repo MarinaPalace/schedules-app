@@ -3,13 +3,14 @@ import { getLocale, getTranslations } from "next-intl/server";
 import { db } from "@/db/client";
 import { departments } from "@/db/schema";
 import { dateRange, daysBetween, isISODate, isWeekend, monthBounds, monthLabel, monthOf, weekdayShort } from "@/lib/calendar";
-import { cellLabel, customCodes, CUSTOM_COLOR, viewOfEntry, type CellView } from "@/lib/cell-view";
+import { cellLabel, customCodes, CUSTOM_COLOR, paidAt, viewOfEntry, type CellView } from "@/lib/cell-view";
 import { ABSENCE_CODES } from "@/lib/codes";
 import { key, loadDepartmentEmployees, loadSchedule, loadShiftTemplates } from "@/lib/data";
 import { getDayLabels } from "@/lib/day-labels";
 import { formatDate, formatDateTime, todayISO } from "@/lib/dates";
 import { isPublished, loadCutoffs, loadPublishedSchedule } from "@/lib/published";
 import { renderSchedulePdf, type PdfCell } from "@/lib/schedule-pdf";
+import { loadLocations } from "@/lib/org";
 import { getCurrentUser, getEmployeeForUser, getVisibleDepartments } from "@/lib/session";
 import { formatHours } from "@/lib/shifts";
 
@@ -36,8 +37,10 @@ export async function GET(request: Request) {
   if (!dept) return new Response("Not found", { status: 404 });
 
   const [t, locale, labels] = await Promise.all([getTranslations(), getLocale(), getDayLabels()]);
-  const people = (await loadDepartmentEmployees(dept.id, from, to)).filter((e) => manages || e.active);
-  const ids = people.map((e) => e.id);
+  const allPeople = (await loadDepartmentEmployees(dept.id, from, to)).filter((e) => manages || e.active);
+  // ?location=…: that place's own schedule – only the people and the blocks worked there.
+  const place = (await loadLocations([dept.id])).find((l) => l.id === url.searchParams.get("location")) ?? null;
+  const ids = allPeople.map((e) => e.id);
   const [plan, templates, cutoff] = await Promise.all([
     manages ? loadSchedule(ids, from, to) : loadPublishedSchedule(ids, from, to),
     loadShiftTemplates(),
@@ -49,12 +52,16 @@ export async function GET(request: Request) {
   const today = todayISO();
   const used = new Set<string>();
   const views = new Map<string, CellView>();
-  for (const p of people) {
+  for (const p of allPeople) {
     for (const d of dates) {
       const e = plan.get(key(p.id, d));
-      if (e && e.kind !== "none") views.set(key(p.id, d), viewOfEntry(e, templates, labels));
+      if (!e || e.kind === "none") continue;
+      // At one location, a shift elsewhere is left out (the person is not there that day).
+      if (place && e.kind === "shift" && !e.segments.some((s) => s.locationId === place.id)) continue;
+      views.set(key(p.id, d), viewOfEntry(e, templates, labels));
     }
   }
+  const people = place ? allPeople.filter((p) => p.homeLocationId === place.id || dates.some((d) => views.get(key(p.id, d))?.kind === "shift")) : allPeople;
   // Hours entered without a legend get the same automatic codes as on screen, and a legend line.
   const codes = customCodes(views.values(), t("schedule.customPrefix"));
   const dayMinutes = dates.map(() => 0);
@@ -64,10 +71,12 @@ export async function GET(request: Request) {
       const e = plan.get(key(p.id, d));
       const v = views.get(key(p.id, d));
       if (!e || !v) return { kind: "none", label: "", color: null };
-      minutes += e.paidMinutes;
-      dayMinutes[i] += e.paidMinutes;
+      const paid = paidAt(v, place?.id ?? null);
+      minutes += paid;
+      dayMinutes[i] += paid;
       if (e.shiftTemplateId && v.tool.type === "template") used.add(e.shiftTemplateId);
-      const sub = e.kind === "shift" ? e.segments.map((s) => `${shortTime(s.start)}–${shortTime(s.end)}`).join(" / ") : undefined;
+      const blocks = place ? e.segments.filter((s) => s.locationId === place.id) : e.segments;
+      const sub = e.kind === "shift" ? blocks.map((s) => `${shortTime(s.start)}–${shortTime(s.end)}`).join(" / ") : undefined;
       return { kind: v.kind, label: cellLabel(v, codes), sub, color: v.color };
     });
     return { name: `${p.lastName} ${p.firstName}`, position: p.position, cells, hours: formatHours(minutes), highlight: !manages && p.id === me?.id };
@@ -79,7 +88,7 @@ export async function GET(request: Request) {
   const period = isMonth ? monthLabel(monthOf(from), locale) : `${formatDate(from)} – ${formatDate(to)}`;
 
   const pdf = await renderSchedulePdf({
-    title: `${t("schedule.title")} · ${dept.name}`,
+    title: `${t("schedule.title")} · ${dept.name}${place ? ` · ${place.code} ${place.name}` : ""}`,
     subtitle: unpublished ? `${period} · ${t("pdf.includesUnpublished")}` : period,
     generated: t("pdf.generated", { when: formatDateTime(new Date()) }),
     days: dates.map((d) => ({

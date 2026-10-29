@@ -92,7 +92,8 @@
     "team": "Team",
     "swaps": "Shift swaps",
     "account": "My account",
-    "notifications": "Notifications"
+    "notifications": "Notifications",
+    "setup": "Locations & roles"
   },
   "login": {
     "subtitle": "Sign in with the username you got from your manager.",
@@ -178,7 +179,8 @@
     "currentPasswordWrong": "The current password is wrong",
     "telegramNotConfigured": "Telegram isn't set up on the server",
     "webhookNeedsHttps": "Telegram needs the app's public https address (set APP_URL)",
-    "noChannels": "Add an email or connect Telegram first"
+    "noChannels": "Add an email or connect Telegram first",
+    "otherDepartment": "That place or role belongs to another department"
   },
   "departments": {
     "title": "Departments",
@@ -725,6 +727,52 @@
     "badRange": "Choose an end time after the start",
     "staff": "Staff",
     "perHour": "Staff per hour",
-    "help": "Bars show who works when. The blue row counts people per half hour; tap a day in the week chart to see it."
+    "help": "Bars show who works when. The blue row counts people per half hour; tap a day in the week chart to see it.",
+    "noRole": "No role",
+    "roleFilter": "Role",
+    "allRoles": "All roles",
+    "perPlace": "Staff per location"
+  },
+  "setup": {
+    "title": "Locations & roles",
+    "help": "Set up the places (restaurants, bars…) and roles (waiter, helper waiter…) of a department. They are used to plan each place and to count staff per role.",
+    "roles": "Roles",
+    "rolesHelp": "Who does what. Each person has a usual role; it can be changed for a single shift.",
+    "order": "Order",
+    "newRole": "New role",
+    "rolePlaceholder": "e.g. Helper waiter",
+    "locations": "Locations",
+    "locationsHelp": "Each place has its own schedule and PDF. The short code is shown in the grid.",
+    "newLocation": "New location",
+    "locationPlaceholder": "e.g. Pool bar",
+    "staff": "Usual role and place",
+    "staffHelp": "Filled in automatically when planning – can be changed per shift.",
+    "role": "Role",
+    "noRole": "– no role –",
+    "usualLocation": "Usual place",
+    "noLocation": "– no usual place –"
+  },
+  "places": {
+    "none": "– no place –",
+    "place": "Place",
+    "block": "Block {n}",
+    "perBlock": "Different place per block (split shift)",
+    "role": "Role in this shift",
+    "usualRole": "Usual: {role}",
+    "noRole": "– no role –",
+    "otherRoleNote": "Not the usual role – these hours show up under “Hours by role”.",
+    "filter": "Location",
+    "all": "All locations",
+    "showEveryone": "Show all staff"
+  },
+  "roleHours": {
+    "title": "Hours by role",
+    "help": "Hours worked in each role. Hours outside a person's main role are highlighted – they may be paid at a different rate.",
+    "empty": "No hours this month.",
+    "mainRole": "Main role",
+    "noRole": "No role",
+    "other": "Outside main role",
+    "plannedCol": "planned",
+    "legend": "Approved Forma 76 hours; numbers in brackets are planned and not approved yet. Highlighted: hours in a role other than the main one."
   }
 }

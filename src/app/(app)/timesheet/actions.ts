@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { and, desc, eq, inArray, isNull } from "drizzle-orm";
 import { z } from "zod";
-import { correctionDecisions, correctionRequests, employees, timesheetEntries } from "@/db/schema";
+import { correctionDecisions, correctionRequests, employees, scheduleEntries, timesheetEntries } from "@/db/schema";
 import { withActor } from "@/lib/actor";
 import { isISODate } from "@/lib/calendar";
 import { todayISO } from "@/lib/dates";
@@ -49,8 +49,16 @@ export async function approveDay(raw: unknown): Promise<Result> {
 
     await withActor(me.id, async (tx) => {
       const ids = values.map((r) => r.employeeId);
-      const known = await tx.select({ id: employees.id }).from(employees).where(inArray(employees.id, ids));
+      const known = await tx.select({ id: employees.id, jobRoleId: employees.jobRoleId }).from(employees).where(inArray(employees.id, ids));
       if (known.length !== new Set(ids).size) throw new AppError("unknownEmployee");
+      // The role worked comes from that day's plan (else the usual role) – needed for hours per role.
+      const planned = await tx
+        .selectDistinctOn([scheduleEntries.employeeId])
+        .from(scheduleEntries)
+        .where(and(inArray(scheduleEntries.employeeId, ids), eq(scheduleEntries.workDate, date)))
+        .orderBy(scheduleEntries.employeeId, desc(scheduleEntries.createdAt));
+      const roleOf = (employeeId: string) =>
+        planned.find((p) => p.employeeId === employeeId && p.kind === "shift")?.jobRoleId ?? known.find((k) => k.id === employeeId)?.jobRoleId ?? null;
       const existing = await tx
         .select({ id: timesheetEntries.employeeId })
         .from(timesheetEntries)
@@ -61,6 +69,7 @@ export async function approveDay(raw: unknown): Promise<Result> {
           employeeId,
           workDate: date,
           version: 1,
+          jobRoleId: v.kind === "shift" ? roleOf(employeeId) : null,
           kind: v.kind,
           absenceCode: v.absenceCode ?? null,
           segments: v.segments,
@@ -166,6 +175,7 @@ export async function decideCorrection(raw: unknown): Promise<Result> {
           breakMinutes: req.breakMinutes,
           paidMinutes: req.paidMinutes,
           departmentId: current.departmentId,
+          jobRoleId: req.kind === "shift" ? current.jobRoleId : null,
           correctionRequestId: req.id,
           note: req.reason,
           createdBy: me.id,

@@ -27,6 +27,7 @@ import { PeriodNav } from "@/components/toolbar";
 import { requestOwnAdvance } from "../advances/actions";
 import { cancelSwap, respondSwap } from "../swaps/actions";
 import { getDayLabels } from "@/lib/day-labels";
+import { loadLocations, placeNames } from "@/lib/org";
 import { getLocale, getTranslations } from "next-intl/server";
 
 type Day<T, S> = { ts?: T; sc?: S; rate: number };
@@ -53,7 +54,8 @@ function summarize<T extends { paidMinutes: number }, S extends { paidMinutes: n
 export default async function MePage({ searchParams }: PageProps<"/me">) {
   const user = await requireUser();
   const emp = await getEmployeeForUser(user.id);
-  const [t, locale, labels] = await Promise.all([getTranslations(), getLocale(), getDayLabels()]);
+  const [t, locale, baseLabels, places] = await Promise.all([getTranslations(), getLocale(), getDayLabels(), placeNames()]);
+  const labels = { ...baseLabels, places };
   if (!emp) {
     return (
       <div className="max-w-xl space-y-2">
@@ -85,7 +87,7 @@ export default async function MePage({ searchParams }: PageProps<"/me">) {
     : [emp];
   const ids = colleagues.map((c) => c.id);
 
-  const [dept, schedule, timesheet, rates, templates, advances, swaps, cutoff] = await Promise.all([
+  const [dept, schedule, timesheet, rates, templates, advances, swaps, cutoff, deptPlaces] = await Promise.all([
     db.query.departments.findFirst({ where: eq(departments.id, emp.departmentId) }),
     loadPublishedSchedule(ids, rangeFrom, rangeTo),
     loadTimesheet([emp.id], rangeFrom, rangeTo),
@@ -94,6 +96,7 @@ export default async function MePage({ searchParams }: PageProps<"/me">) {
     loadAdvances({ employeeIds: [emp.id] }),
     loadSwaps({ employeeId: emp.id, limit: 20 }),
     loadCutoffs([emp.departmentId], rangeFrom, rangeTo),
+    loadLocations([emp.departmentId]),
   ]);
   const legend = (id: string | null | undefined) => templates.find((tpl) => tpl.id === id);
 
@@ -234,7 +237,7 @@ export default async function MePage({ searchParams }: PageProps<"/me">) {
 
         {view === "table" ? (
           <>
-            <MonthTable dates={dateRange(from, to)} rows={tableRows} today={today} locale={locale} swapLabel={t("swaps.newTitle")} codes={codes} />
+            <MonthTable dates={dateRange(from, to)} rows={tableRows} today={today} locale={locale} swapLabel={t("swaps.newTitle")} codes={codes} placeCodes={Object.fromEntries(deptPlaces.map((l) => [l.id, l.code]))} />
             <p className="text-xs text-gray-500">{t(team ? "me.tableHelpTeam" : "me.tableHelp")}</p>
             <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-600">
               {templates

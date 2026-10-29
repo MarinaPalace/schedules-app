@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { countBySlot, dayIntervals, minStaff, presenceBetween } from "./coverage";
+import { countBySlot, dayBlocks, dayIntervals, minStaff, pick, presenceBetween } from "./coverage";
 import { cellLabel, customCodes, viewOfEntry, viewOfTool } from "./cell-view";
 
 const seg = (start: string, end: string) => ({ start, end });
@@ -54,5 +54,38 @@ describe("custom hours in the legend", () => {
     const tpl = { id: "t", code: "M", name: "Morning", color: "#f00", segments: [seg("07:00", "15:00")], paidMinutes: 480, breakMinutes: 0 };
     const v = viewOfEntry({ kind: "shift", segments: tpl.segments, paidMinutes: 480, breakMinutes: 0, shiftTemplateId: "t", absenceCode: null }, [tpl], labels);
     expect(cellLabel(v, customCodes([v], "P"))).toBe("M");
+  });
+});
+
+describe("staff per role and place", () => {
+  const people = [
+    // Waiter: morning at R1, evening at B1 (split shift at two places)
+    dayBlocks({ segments: [{ start: "09:00", end: "13:00", locationId: "R1" }, { start: "17:00", end: "21:00", locationId: "B1" }], roleId: "waiter" }),
+    // Assistant manager at R1 all day
+    dayBlocks({ segments: [{ start: "08:00", end: "16:00", locationId: "R1" }], roleId: "am" }),
+    // Waiter without a place yet
+    dayBlocks({ segments: [{ start: "10:00", end: "14:00" }], roleId: "waiter" }),
+  ];
+  it("counts by role at one place", () => {
+    const waitersAtR1 = countBySlot(people.map((b) => pick(b, { locationId: "R1", roleId: "waiter" })), 60);
+    expect(waitersAtR1[10]).toBe(1);
+    expect(waitersAtR1[18]).toBe(0); // the evening block is at the bar
+    const waitersAnywhere = countBySlot(people.map((b) => pick(b, { roleId: "waiter" })), 60);
+    expect(waitersAnywhere[10]).toBe(2);
+    expect(waitersAnywhere[18]).toBe(1);
+    expect(minStaff(people.map((b) => pick(b, { locationId: "R1" })), H(9), H(12))).toBe(2);
+  });
+  it("a person at two places counts at only one at a time", () => {
+    const atR1 = countBySlot(people.map((b) => pick(b, { locationId: "R1" })), 60);
+    const atB1 = countBySlot(people.map((b) => pick(b, { locationId: "B1" })), 60);
+    expect(atR1[18] + atB1[18]).toBe(1);
+    expect(atR1[10] + atB1[10]).toBe(2);
+  });
+  it("hours at a place share the break by time", async () => {
+    const { paidAt } = await import("./cell-view");
+    const c = { kind: "shift" as const, label: "S", color: null, title: "", tool: { type: "none" as const }, paidMinutes: 450, segments: [{ start: "09:00", end: "13:00", locationId: "R1" }, { start: "17:00", end: "21:00", locationId: "B1" }] };
+    expect(paidAt(c, "R1")).toBe(225);
+    expect(paidAt(c, "B1")).toBe(225);
+    expect(paidAt(c, null)).toBe(450);
   });
 });

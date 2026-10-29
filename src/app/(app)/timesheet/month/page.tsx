@@ -36,6 +36,9 @@ export default async function TimesheetMonthPage({ searchParams }: PageProps<"/t
         <Link href={href("/timesheet", { dept: dept.id })} className="btn btn-sm">
           {t("timesheet.dailyApproval")}
         </Link>
+        <Link href={href("/timesheet/roles", { dept: dept.id, month })} className="btn btn-sm">
+          {t("roleHours.title")}
+        </Link>
       </div>
       {unapproved > 0 && (
         <p className="text-sm text-amber-700">

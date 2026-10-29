@@ -188,6 +188,8 @@ export async function decideSwap(raw: unknown): Promise<Result> {
               kind: src?.kind ?? "none",
               shiftTemplateId: src?.shiftTemplateId ?? null,
               absenceCode: src?.absenceCode ?? null,
+              // The person takes over the shift as it was planned – incl. its place and role.
+              jobRoleId: src?.jobRoleId ?? null,
               segments: src?.segments ?? [],
               breakMinutes: src?.breakMinutes ?? 0,
               paidMinutes: src?.paidMinutes ?? 0,

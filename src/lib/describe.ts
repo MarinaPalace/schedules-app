@@ -12,7 +12,10 @@ export function describeDay(
 ): string {
   if (!e) return "—";
   if (e.kind === "shift") {
-    return `${formatSegments(e.segments)}${e.breakMinutes ? ` (−${e.breakMinutes}${NB}${labels.minuteUnit})` : ""} ·${NB}${formatHours(e.paidMinutes)}${NB}${labels.hourUnit}`;
+    const where = (id?: string | null) => (id && labels.places?.[id] ? ` ${labels.places[id]}` : "");
+    // With places: "09:00–13:00 Main restaurant / 15:00–19:00 Pool bar".
+    const times = labels.places && e.segments.some((s) => s.locationId) ? e.segments.map((s) => `${s.start}–${s.end}${where(s.locationId)}`).join(" / ") : formatSegments(e.segments);
+    return `${times}${e.breakMinutes ? ` (−${e.breakMinutes}${NB}${labels.minuteUnit})` : ""} ·${NB}${formatHours(e.paidMinutes)}${NB}${labels.hourUnit}`;
   }
   if (e.kind === "absence") return `${e.absenceCode} – ${labels.absence[e.absenceCode ?? ""] ?? ""}`;
   if (e.kind === "off") return labels.dayOff;

@@ -18,16 +18,32 @@ export function intervalsOf(segments: Segment[] | undefined): Interval[] {
   });
 }
 
+/** A stretch of work on one calendar day, with where and as what. */
+export type Block = { start: number; end: number; locationId: string | null; roleId: string | null };
+type Day = { segments?: Segment[]; roleId?: string | null } | undefined;
+
 /**
  * Working time that falls on a calendar day: the day's own blocks (cut at midnight)
  * plus the part of yesterday's overnight shift after midnight.
  */
+export function dayBlocks(today: Day, yesterday?: Day): Block[] {
+  const blocks = (d: Day) => (d?.segments ?? []).map((s, i) => ({ iv: intervalsOf([s])[0], s, i, roleId: d?.roleId ?? null }));
+  const own = blocks(today).map(({ iv: [a, b], s, roleId }) => ({ start: a, end: Math.min(b, DAY), locationId: s.locationId ?? null, roleId }));
+  const spill = blocks(yesterday)
+    .filter(({ iv: [, b] }) => b > DAY)
+    .map(({ iv: [, b], s, roleId }) => ({ start: 0, end: b - DAY, locationId: s.locationId ?? null, roleId }));
+  return [...spill, ...own].filter((x) => x.end > x.start);
+}
+
 export function dayIntervals(today: Segment[] | undefined, yesterday?: Segment[]): Interval[] {
-  const own = intervalsOf(today).map(([a, b]): Interval => [a, Math.min(b, DAY)]);
-  const spill = intervalsOf(yesterday)
-    .filter(([, b]) => b > DAY)
-    .map(([, b]): Interval => [0, b - DAY]);
-  return [...spill, ...own].filter(([a, b]) => b > a);
+  return dayBlocks({ segments: today }, { segments: yesterday }).map((b): Interval => [b.start, b.end]);
+}
+
+/** Intervals of the blocks at a place (null/undefined = anywhere) with a role (undefined = any role, null = without a role). */
+export function pick(blocks: Block[], where: { locationId?: string | null; roleId?: string | null }): Interval[] {
+  return blocks
+    .filter((b) => (where.locationId == null || b.locationId === where.locationId) && (where.roleId === undefined || b.roleId === where.roleId))
+    .map((b): Interval => [b.start, b.end]);
 }
 
 /** How many people work in each slot of the day (a person counts if they work any part of the slot). */
