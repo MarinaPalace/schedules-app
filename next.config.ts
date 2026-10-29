@@ -7,7 +7,9 @@ const nextConfig: NextConfig = {
   // All pages are per-user and live, so we render dynamically instead of
   // prerendering a static shell.
   cacheComponents: false,
-  serverExternalPackages: ["@electric-sql/pglite"],
+  serverExternalPackages: ["@electric-sql/pglite", "pdfkit"],
+  // Fonts embedded in the schedule PDF are read from disk at runtime.
+  outputFileTracingIncludes: { "/schedule/pdf": ["./src/fonts/**"] },
   turbopack: {
     rules: {
       "*.css": {

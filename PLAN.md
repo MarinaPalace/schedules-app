@@ -2,7 +2,7 @@
 
 Status legend: `[x]` done · `[~]` in progress / partial · `[ ]` pending
 
-Last updated: 2026-10-28 (Phases 0–5 + 7 done; Phase 8 = AI, planned)
+Last updated: 2026-10-29 (Phases 0–5, 7, 9 and 10 done; Phase 8 = AI, planned)
 
 ---
 
@@ -37,11 +37,11 @@ Not a goal: legal/payroll accuracy, overtime and night-work rules. Numbers are e
 
 | Role | Can do |
 |---|---|
-| `employee` | Own schedule, own hours, estimated pay, own advance requests; department schedule if `can_view_department` |
+| `employee` | Own schedule (list or table), the published schedule of their department, own hours, estimated pay, own advance requests, shift swaps |
 | `manager` | Everything for **their departments**: schedule, Forma 76 approval, correction requests, advance requests for staff, department dashboard |
 | `top_manager` | All departments like a manager + **approves/rejects corrections of approved days** + advance decisions |
 | `owner` | Read-only on everything, all dashboards, sets budgets |
-| `accountant` | Read-only hours + exports |
+| `accountant` | Read-only hours + exports; approves/rejects advances and marks them as given |
 | `admin` | Users, departments, employees, rates, legends, settings |
 
 ## 4. Data model (core)
@@ -50,14 +50,15 @@ Not a goal: legal/payroll accuracy, overtime and night-work rules. Numbers are e
 user / session / account / verification   (Better Auth; user.role, user.username)
 departments
 department_managers (user ↔ department)
-employees (user_id?, department_id, employee_no, can_view_department, active)
+employees (user_id?, department_id, employee_no, active)   (can_view_department column unused since 2026-10-29)
 employee_rates (employee_id, hourly_rate_cents, effective_from)        append-only
 shift_templates (code, name, color, segments[], paid_minutes, department_id?)
 schedule_entries (employee_id, work_date, kind shift|off|absence, segments, paid_minutes, department_id)   append-only, latest wins
 timesheet_entries (Forma 76 approved versions, same snapshot fields + version)                            append-only
 correction_requests + correction_decisions                                                                 append-only
 budgets (department_id, month, amount_cents, hours?)                                                       append-only, latest wins
-advance_requests + advance_decisions                                                                       append-only
+advance_requests + advance_decisions + advance_payments ("given" by accounting)                           append-only
+swap_requests (requester, colleague, date1, date2?, snapshot of published entries) + swap_events          append-only
 settings (key/value)
 audit_events (hash chained)
 ```
@@ -108,7 +109,7 @@ Dashboard numbers per department & month:
 - [x] Copy previous week
 - [x] Cell history (`/schedule/history`): every plan change, Forma 76 version and correction, with who/when
 - [x] Employee "My schedule" (mobile first) – next 7 days + month list
-- [x] Department schedule for employees with permission (`/me/department`), no money shown
+- [x] Department schedule for employees (now: My schedule → Table → "Whole department"), no money shown
 - [x] Schedule rows snapshot hours and break, so editing a legend never rewrites past days (marked "*")
 
 ### Phase 3 — Forma 76 (daily actual hours)
@@ -158,6 +159,45 @@ Dashboard numbers per department & month:
 - [x] Phone-friendly controls: 44–64 px touch targets, 16 px inputs (no iOS zoom), safe-area support
 - [x] Verified with a scripted phone (390×844) and tablet (820×1180) run in Edge: pick → auto-advance → save → undo, repeat week, publish count, menu, dark mode, employee view – no browser errors. Bugs found and fixed: undo history cleared after each save; "repeat week" cleared days before a mid-week month start; dark mode backgrounds stayed white.
 
+### Phase 9 — Swaps, accounting, PDF, end-user review (done 2026-10-29)
+- [x] **My schedule → List / Table**; tick **Whole department** to see every colleague's published plan (remembered per device; phones scroll to today). Every employee may see their department – the admin "can see department schedule" flag is gone
+- [x] **Shift swaps** (`/me/swap`, `/swaps`): exchange plans with a colleague on one day or two days (covers "take my shift", "I take your Saturday, you take my Thursday"). Tap a colleague's day in the table to start
+  - Flow: employee asks → **colleague accepts/declines** → **department manager approves/rejects** (GM/admin too). Requester can cancel while open; open requests expire when the day passes
+  - Approval writes new schedule rows (`swap_request_id`) that employees see immediately – no re-publishing
+  - Refused: past days, days already approved in Forma 76, leave/sick days (О, Б, НП, Н), identical plans, overlapping open requests, colleague without login, and **stale requests** (plan changed after the request, published or not)
+  - A manager taking part in a swap can't approve it – another manager or the GM must
+  - DB: append-only + audited; partial unique indexes make "accepted" and the final outcome happen at most once
+- [x] **Advances**: accounting can approve/reject and **mark as given** (`advance_payments`); statuses pending → approved → given / rejected; "to hand out" queue; cards show earned-so-far and advances already approved this month; employee sees "given"
+- [x] **Schedule PDF** (`/schedule/pdf`, button on the schedule and in the employee table): A4 landscape, shift colours, totals per person/day, **legend with hours** (times, break, paid hours) + absence symbols, page numbers, Cyrillic font (PT Sans, OFL). Managers print the current plan (marked if unpublished parts are included); employees print the published plan of their own department
+- [x] Counters in the navigation for things waiting for you (swaps to answer/approve, corrections for the GM, advances to decide/hand out)
+- [x] Dashboard warns when a department has upcoming changes that are **not published** (staff see nothing until then)
+- [x] Employees see "not published yet" instead of "not planned yet" when the manager hasn't published that day
+- [x] Small phone fixes: "8 h" / "(−30 min)" no longer break across lines, minute unit translated, compact list for finished swaps
+
+**Phase 9 verification (2026-10-29):** typecheck, lint, production build clean; `npm test` 21 tests (incl. swap state/moves and a 40-row Cyrillic PDF); `db:check` incl. new tables and the unique "one outcome" index. Scripted browser runs against the production build on a fresh demo database (phone 390×844 + desktop): 52 checks – full swap flow (request from the table → badge → accept → approve → both schedules change), overlap, cancel, decline, stale, own swap via GM, two-day swap, absence blocked, unpublished plan hidden; advances (employee request, manager on behalf, accountant approve/reject/given, owner read-only); PDF permissions (other department 403, too long 400, signed out → login) and visual check of BG/EN/RU PDFs; every page for 9 users in Bulgarian, phone + desktop, dark mode – no console errors, no horizontal overflow on phones.
+
+**End-user review – open points (not built):**
+- ~~Staff only learn about swap requests / published schedules when they open the app~~ → done in Phase 10 (email + Telegram)
+- Only staff with a login can take part in swaps – create logins for everyone who should use the app
+- Navigation counters refresh on every action and page load, not live while a page stays open
+- Advances count in the month they were requested (not a chosen payroll month)
+- Swaps are limited to the same department and to the next 120 days
+
+### Phase 10 — Email & Telegram: notifications and password links (done 2026-10-29)
+- [x] **No passwords typed or sent by anyone.** Creating a login (employee page, Users & roles, new employee form) creates the account with an unknown random password and a **one-time setup link** (7 days); the person opens it, sees their username, chooses a password (min. 8) and is signed in
+- [x] Admin "Reset password" → **reset link** (2 hours) instead of typing a password; "Forgot password?" on the sign-in page (same answer for unknown users, max 3 links/hour); "Change password" under **My account** (needs the current one). Resets and changes sign out other devices and send a "your password was changed" notice
+- [x] Links go by **email and/or Telegram** when the person has them; the admin always also sees the link + **QR code** to hand over in person, plus a **Telegram QR**: scanning it and pressing Start connects the person's Telegram and the bot sends the password link there
+- [x] Only a SHA-256 hash of each link is stored; a new link replaces older ones; used/expired links stop working; links are redacted in the delivery log; DB allows only "mark as used"
+- [x] **Notifications** (email + Telegram, in the language the person uses the app in): swap asked / accepted / declined / cancelled / to approve (department managers) / approved / rejected; **schedule published** (only people whose plan changed, with their days); advance requested (department managers + accounting) / approved / rejected / given; Forma 76 correction requested (GM) / decided (the manager who asked). Sent after the response (`after()`), so nobody waits
+- [x] **My account** page: contact email, Telegram connect/disconnect, email/Telegram switches, test message, change password
+- [x] **Admin → Notifications**: email/Telegram set-up status, "Connect bot to this app" (Telegram webhook, needs https), log of sent messages with errors
+- [x] Telegram webhook `/api/telegram/webhook` checks the secret header; `npm run telegram:poll` for local development
+- [x] Set-up: `SMTP_URL`, `MAIL_FROM`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_BOT_USERNAME`, `TELEGRAM_WEBHOOK_SECRET`, `APP_URL` (README → "Logins, email and Telegram")
+
+**Phase 10 verification (2026-10-29):** typecheck, lint, tests, build clean; `db:check` passes. Browser runs against a fake SMTP server and a fake Telegram Bot API (same code paths as production, only the addresses differ), 51 checks: invite email with button → set password (mismatch/too short refused) → signed in; link reuse refused; webhook with a wrong secret 403; bad Telegram token answered; Telegram connect from My account; Telegram-only invite (bot sends the setup link after Start); forgot password → email + Telegram, old password rejected, other device signed out, notice sent, rate limit; admin reset link handed over in person; change password (wrong current refused); publish → only changed people get their days; full swap chain incl. "approver isn't notified of her own action"; advance request/approve/given; correction request/decision; blocked bot logged as failed without breaking anything; no tokens in the admin log; webhook on http refused with an explanation.
+
+**Not done:** real delivery with your provider/bot (needs your SMTP details and a bot from @BotFather – see README); Telegram only reaches people who pressed Start once.
+
 ### Phase 8 — AI schedule assistant (future)
 - [ ] Admin enters an OpenRouter API key (stored server-side only, encrypted; never sent to the browser) and picks a model
 - [ ] Per department: staffing needs per day/shift (e.g. Morning 2, Afternoon 2, Night 1) – also useful without AI as a coverage warning
@@ -185,7 +225,8 @@ Dashboard numbers per department & month:
 - [ ] Budgets in € only, or also in hours? (model supports both; UI shows € first)
 - [ ] Employees on monthly salary: enter an hourly equivalent? (current assumption: yes)
 - [x] Employer cost factor → 1.19 for now; owner/admin change it in **Budgets → Employer cost factor**
-- [ ] Who decides advances: manager alone, or manager + top manager? (current: department manager or top manager, one decision)
+- [x] Who decides advances → department manager, GM **or accounting** (one decision); accounting then marks it as given (decided 2026-10-29)
+- [x] Who may see the department schedule → **every employee** (decided 2026-10-29)
 - [x] Managers add/edit employees → **No**; admin, owner and GM can (decided 2026-10-28)
 - [x] Employees see changes → **only after the manager publishes** (decided 2026-10-28, built)
 
@@ -216,3 +257,5 @@ Local database notes:
 - 2026-10-28 — Fixed "Failed query … break_minutes": a running dev server kept an old in-memory copy of the local database while it was rebuilt. Now: auto-migrate on start + lock file so scripts can't touch the database the app has open. Added BG/EN/RU and schedule publishing; open questions 2.1–2.4 answered. Next: visual review, Phase 6.
 - 2026-10-28 — Phase 7: people/permissions rework, Team page, phone-first schedule editor (Day/Person/Table, picker, undo, repeat week), bottom navigation, dark mode, Forma 76 phone layout. Phase 8 (AI via OpenRouter) planned.
 - 2026-10-28 — Fixed "Failed query … phone" again: a dev server started before a migration kept the old schema. Local migrations are now also checked on each request (cheap, once per new migration), so no restart is needed.
+- 2026-10-29 — Phase 9: shift swaps (colleague → manager), employee table + whole-department view, accounting approves/hands out advances, schedule PDF with legend, navigation counters, unpublished-changes warning. End-user review findings listed under Phase 9.
+- 2026-10-29 — Phase 10: email + Telegram notifications, password set-up/reset links instead of typed passwords, My account page, Admin → Notifications.

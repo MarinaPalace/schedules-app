@@ -10,7 +10,8 @@ import { formatEur } from "@/lib/money";
 import { formatDate, formatDateTime, todayISO } from "@/lib/dates";
 import { ActionForm, SubmitButton } from "@/components/action-form";
 import { RoleSelect } from "@/components/role-select";
-import { addRate, createEmployeeLogin, linkExistingLogin, resetPassword, updateEmployee } from "../actions";
+import { LinkForm } from "@/components/link-form";
+import { addRate, createEmployeeLogin, linkExistingLogin, resetPassword, updateEmployee, updateLoginContact } from "../actions";
 
 export default async function EmployeePage({ params }: PageProps<"/admin/employees/[id]">) {
   const me = await requireUser(PEOPLE_ADMINS);
@@ -99,9 +100,6 @@ export default async function EmployeePage({ params }: PageProps<"/admin/employe
           )}
           <div className="flex flex-col justify-end gap-2 pb-1 text-sm">
             <label className="flex items-center gap-2">
-              <input type="checkbox" name="canViewDepartment" defaultChecked={emp.canViewDepartment} /> {t("employees.canViewDepartment")}
-            </label>
-            <label className="flex items-center gap-2">
               <input type="checkbox" name="active" defaultChecked={emp.active} /> {t("employees.activeBlocksLogin")}
             </label>
           </div>
@@ -149,40 +147,51 @@ export default async function EmployeePage({ params }: PageProps<"/admin/employe
       <section className="card space-y-4">
         <h2 className="font-medium">{t("employees.appLogin")}</h2>
         {login ? (
-          <div className="space-y-3">
+          <div className="space-y-4">
             <p className="text-sm">
               {t("common.username")}: <span className="font-mono">{login.username}</span>
               {!login.active && <span className="badge ml-2">{t("employees.blocked")}</span>}
             </p>
+            <p className="text-sm text-gray-600">
+              Telegram: {login.telegramChatId ? <span className="text-green-700">✓ {login.telegramName ?? t("account.connected")}</span> : t("account.notConnected")}
+            </p>
             {canManageLogin && (
-              <ActionForm action={resetPassword} resetOnSuccess className="flex flex-wrap items-end gap-2">
-                <input type="hidden" name="userId" value={login.id} />
-                <div>
-                  <label className="label">{t("common.newPassword")}</label>
-                  <input name="password" className="input" autoComplete="new-password" required minLength={6} />
-                </div>
-                <SubmitButton className="btn">{t("common.resetPassword")}</SubmitButton>
-              </ActionForm>
+              <>
+                <ActionForm action={updateLoginContact} className="flex flex-wrap items-end gap-2">
+                  <input type="hidden" name="userId" value={login.id} />
+                  <div className="min-w-56 flex-1">
+                    <label className="label">{t("account.email")}</label>
+                    <input name="email" type="email" defaultValue={login.contactEmail ?? ""} className="input" autoComplete="off" />
+                  </div>
+                  <SubmitButton className="btn">{t("common.save")}</SubmitButton>
+                </ActionForm>
+                <LinkForm action={resetPassword}>
+                  <input type="hidden" name="userId" value={login.id} />
+                  <SubmitButton className="btn">{t("employees.sendResetLink")}</SubmitButton>
+                  <p className="mt-1 text-xs text-gray-500">{t("employees.resetHelp")}</p>
+                </LinkForm>
+              </>
             )}
           </div>
         ) : (
           <>
-            <ActionForm action={createEmployeeLogin} className="grid gap-2 sm:grid-cols-[1fr_1fr_1fr_auto] sm:items-end">
+            <LinkForm action={createEmployeeLogin} replaceOnSuccess className="grid gap-2 sm:grid-cols-[1fr_1fr_1fr_auto] sm:items-end">
               <input type="hidden" name="employeeId" value={emp.id} />
               <div>
                 <label className="label">{t("common.username")}</label>
                 <input name="username" className="input" autoCapitalize="none" required />
               </div>
               <div>
-                <label className="label">{t("common.password")}</label>
-                <input name="password" className="input" autoComplete="new-password" required minLength={6} />
+                <label className="label">{t("account.emailOptional")}</label>
+                <input name="email" type="email" className="input" autoComplete="off" />
               </div>
               <div>
                 <label className="label">{t("common.role")}</label>
                 <RoleSelect roles={roles} t={t} />
               </div>
-              <SubmitButton className="btn">{t("employees.createLogin")}</SubmitButton>
-            </ActionForm>
+              <SubmitButton className="btn btn-primary">{t("employees.createLogin")}</SubmitButton>
+              <p className="text-xs text-gray-500 sm:col-span-4">{t("employees.inviteHelp")}</p>
+            </LinkForm>
             {linkable.length > 0 && (
               <ActionForm action={linkExistingLogin} className="flex flex-wrap items-end gap-2 border-t border-gray-100 pt-4">
                 <input type="hidden" name="employeeId" value={emp.id} />

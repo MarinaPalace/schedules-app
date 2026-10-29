@@ -10,22 +10,30 @@ import { run, type ActionState } from "@/lib/action-state";
 import { AppError } from "@/lib/app-error";
 import { assertRole, assignableRoles, ROLES, type Role } from "@/lib/session";
 import { db } from "@/db/client";
-import { createLogin } from "@/lib/users";
+import { createLogin, randomPassword } from "@/lib/users";
+import { sendPasswordLink } from "@/lib/account-links";
+import { errorMessage } from "@/lib/errors";
+import type { LinkResult } from "@/lib/link-result";
 
 const nameSchema = z.string().trim().min(2, "nameTooShort");
 
-export async function createUser(_: ActionState, form: FormData): Promise<ActionState> {
-  return run(async () => {
+/** New login (e.g. a manager or accountant without an employee record); they get a link to choose a password. */
+export async function createUser(_: LinkResult, form: FormData): Promise<LinkResult> {
+  try {
     const me = await assertRole(["admin", "owner"]);
     const role = z.enum(ROLES).parse(form.get("role"));
     if (!assignableRoles(me).includes(role)) throw new AppError("notAllowed");
     const name = nameSchema.parse(form.get("name"));
-    await withActor(me.id, (tx) =>
-      createLogin(tx, { username: String(form.get("username") ?? ""), password: String(form.get("password") ?? ""), name, role }),
+    const email = String(form.get("email") ?? "").trim();
+    const contactEmail = email ? z.email("emailFormat").parse(email) : null;
+    const userId = await withActor(me.id, (tx) =>
+      createLogin(tx, { username: String(form.get("username") ?? ""), password: randomPassword(), name, role, contactEmail }),
     );
     revalidatePath("/admin/users");
-    return (await getTranslations("users"))("created", { name });
-  });
+    return { ok: (await getTranslations("users"))("created", { name }), ...(await sendPasswordLink(me.id, userId, "setup")), at: Date.now() };
+  } catch (e) {
+    return { error: await errorMessage(e), at: Date.now() };
+  }
 }
 
 export async function updateUser(_: ActionState, form: FormData): Promise<ActionState> {

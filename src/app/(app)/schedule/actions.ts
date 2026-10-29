@@ -9,6 +9,9 @@ import { AppError } from "@/lib/app-error";
 import { addDays, dateRange, isISODate } from "@/lib/calendar";
 import { isAbsenceCode, type DayValue } from "@/lib/codes";
 import { loadSchedule } from "@/lib/data";
+import { todayISO } from "@/lib/dates";
+import { notifyPublished } from "@/lib/notify/events";
+import { loadUnpublishedEmployees } from "@/lib/published";
 import { errorMessage } from "@/lib/errors";
 import { canManageDepartment, getCurrentUser } from "@/lib/session";
 import { paidMinutes, parseSegments } from "@/lib/shifts";
@@ -106,7 +109,12 @@ export async function publishSchedule(departmentId: string, from: string, to: st
     z.uuid().parse(departmentId);
     if (!isISODate(from) || !isISODate(to) || from > to) throw new AppError("invalidPeriod");
     const me = await authorize(departmentId);
+    // Only coming days are worth a message; people whose plan doesn't change get none.
+    const today = todayISO();
+    const start = from > today ? from : today;
+    const changed = await loadUnpublishedEmployees(departmentId, start, to);
     await withActor(me.id, (tx) => tx.insert(schedulePublications).values({ departmentId, fromDate: from, toDate: to, createdBy: me.id }));
+    if (start <= to) notifyPublished(changed, start, to);
     revalidatePath("/schedule");
     revalidatePath("/me");
     return {};

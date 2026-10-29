@@ -6,7 +6,8 @@ import { departments, employeeRates, employees, user } from "@/db/schema";
 import { assignableRoles, PEOPLE_ADMINS, requireUser, type Role } from "@/lib/session";
 import { formatEur } from "@/lib/money";
 import { todayISO } from "@/lib/dates";
-import { ActionForm, SubmitButton } from "@/components/action-form";
+import { SubmitButton } from "@/components/action-form";
+import { LinkForm } from "@/components/link-form";
 import { createEmployee } from "./actions";
 import { RoleSelect } from "@/components/role-select";
 
@@ -49,7 +50,7 @@ export default async function EmployeesPage({ searchParams }: PageProps<"/admin/
 
       <details className="card">
         <summary className="cursor-pointer font-medium">{t("employees.addToggle")}</summary>
-        <ActionForm action={createEmployee} resetOnSuccess className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <LinkForm action={createEmployee} resetOnSuccess className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <div>
             <label className="label">{t("common.firstName")}</label>
             <input name="firstName" className="input" required />
@@ -94,20 +95,17 @@ export default async function EmployeesPage({ searchParams }: PageProps<"/admin/
             <input name="username" className="input" autoCapitalize="none" placeholder="ivan.petrov" />
           </div>
           <div>
-            <label className="label">{t("employees.passwordIfUsername")}</label>
-            <input name="password" className="input" autoComplete="new-password" />
+            <label className="label">{t("account.emailOptional")}</label>
+            <input name="email" type="email" className="input" autoComplete="off" />
           </div>
           <div>
             <label className="label">{t("common.role")}</label>
             <RoleSelect roles={assignableRoles(me)} t={t} />
           </div>
-          <label className="flex items-center gap-2 self-end pb-2 text-sm">
-            <input type="checkbox" name="canViewDepartment" /> {t("employees.canViewDepartment")}
-          </label>
           <div className="sm:col-span-2 lg:col-span-3">
             <SubmitButton>{t("employees.add")}</SubmitButton>
           </div>
-        </ActionForm>
+        </LinkForm>
       </details>
 
       <form className="flex flex-wrap items-center gap-3 text-sm">

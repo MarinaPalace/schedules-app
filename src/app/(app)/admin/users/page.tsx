@@ -6,7 +6,8 @@ import { getTranslations } from "next-intl/server";
 
 type T = Awaited<ReturnType<typeof getTranslations<never>>>;
 import { ActionForm, SubmitButton } from "@/components/action-form";
-import { resetPassword } from "../employees/actions";
+import { LinkForm } from "@/components/link-form";
+import { resetPassword, updateLoginContact } from "../employees/actions";
 import { createUser, updateUser } from "./actions";
 
 function RoleSelect({ value, t, roles }: { value?: string; t: T; roles: Role[] }) {
@@ -37,7 +38,7 @@ export default async function UsersPage() {
 
       <div className="card">
         <h2 className="mb-3 font-medium">{t("users.new")}</h2>
-        <ActionForm action={createUser} resetOnSuccess className="grid gap-3 sm:grid-cols-4">
+        <LinkForm action={createUser} resetOnSuccess className="grid gap-3 sm:grid-cols-4">
           <div>
             <label className="label">{t("common.name")}</label>
             <input name="name" className="input" required />
@@ -47,8 +48,8 @@ export default async function UsersPage() {
             <input name="username" className="input" autoCapitalize="none" required />
           </div>
           <div>
-            <label className="label">{t("common.password")}</label>
-            <input name="password" className="input" autoComplete="new-password" required minLength={6} />
+            <label className="label">{t("account.emailOptional")}</label>
+            <input name="email" type="email" className="input" autoComplete="off" />
           </div>
           <div>
             <label className="label">{t("common.role")}</label>
@@ -57,7 +58,7 @@ export default async function UsersPage() {
           <div className="sm:col-span-4">
             <SubmitButton>{t("users.create")}</SubmitButton>
           </div>
-        </ActionForm>
+        </LinkForm>
       </div>
 
       <div className="space-y-2">
@@ -87,14 +88,23 @@ export default async function UsersPage() {
                 </label>
                 <SubmitButton className="btn">{t("common.save")}</SubmitButton>
               </ActionForm>
-              <ActionForm action={resetPassword} resetOnSuccess className="space-y-3">
-                <input type="hidden" name="userId" value={u.id} />
-                <div>
-                  <label className="label">{t("common.newPassword")}</label>
-                  <input name="password" className="input" autoComplete="new-password" required minLength={6} />
-                </div>
-                <SubmitButton className="btn">{t("common.resetPassword")}</SubmitButton>
-              </ActionForm>
+              <div className="space-y-4">
+                <ActionForm action={updateLoginContact} className="flex flex-wrap items-end gap-2">
+                  <input type="hidden" name="userId" value={u.id} />
+                  <div className="min-w-48 flex-1">
+                    <label className="label">{t("account.email")}</label>
+                    <input name="email" type="email" defaultValue={u.contactEmail ?? ""} className="input" autoComplete="off" />
+                  </div>
+                  <SubmitButton className="btn">{t("common.save")}</SubmitButton>
+                </ActionForm>
+                <p className="text-sm text-gray-600">
+                  Telegram: {u.telegramChatId ? <span className="text-green-700">✓ {u.telegramName ?? t("account.connected")}</span> : t("account.notConnected")}
+                </p>
+                <LinkForm action={resetPassword}>
+                  <input type="hidden" name="userId" value={u.id} />
+                  <SubmitButton className="btn">{t("employees.sendResetLink")}</SubmitButton>
+                </LinkForm>
+              </div>
             </div>
             )}
           </details>

@@ -13,7 +13,8 @@
     "db:seed": "tsx scripts/seed.ts",
     "db:check": "tsx scripts/check-db.ts",
     "test": "vitest run",
-    "db:reset": "tsx scripts/reset.ts"
+    "db:reset": "tsx scripts/reset.ts",
+    "telegram:poll": "tsx scripts/telegram-poll.ts"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.5.12",
@@ -22,7 +23,10 @@
     "drizzle-orm": "^0.45.4",
     "next": "16.4.3",
     "next-intl": "^4.14.9",
+    "nodemailer": "^10.0.16",
+    "pdfkit": "^0.17.2",
     "pg": "^8.23.1",
+    "qrcode": "^1.5.4",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "recharts": "^3.10.1",
@@ -32,7 +36,9 @@
   "devDependencies": {
     "@tailwindcss/turbopack": "^4",
     "@types/node": "^22.20.5",
+    "@types/pdfkit": "^0.17.7",
     "@types/pg": "^8.23.1",
+    "@types/qrcode": "^1.5.6",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "dotenv": "^18.0.9",

@@ -53,7 +53,7 @@ async function main() {
     for (const [first, last, position, departmentId, rate, userId] of managerStaff) {
       const [emp] = await tx
         .insert(s.employees)
-        .values({ firstName: first, lastName: last, position, departmentId, userId, employeeNo: String(no++), phone: `+359 88 100 ${no}`, canViewDepartment: true })
+        .values({ firstName: first, lastName: last, position, departmentId, userId, employeeNo: String(no++), phone: `+359 88 100 ${no}` })
         .returning();
       await tx.insert(s.employeeRates).values({ employeeId: emp.id, hourlyRateCents: rate, effectiveFrom: "2026-01-01", createdBy: adminId });
     }
@@ -83,7 +83,7 @@ async function main() {
         : null;
       const [emp] = await tx
         .insert(s.employees)
-        .values({ firstName: first, lastName: last, position, departmentId, userId, employeeNo: String(no++), phone: `+359 88 200 ${no}`, canViewDepartment: hasLogin })
+        .values({ firstName: first, lastName: last, position, departmentId, userId, employeeNo: String(no++), phone: `+359 88 200 ${no}` })
         .returning();
       await tx.insert(s.employeeRates).values({ employeeId: emp.id, hourlyRateCents: rate, effectiveFrom: "2026-01-01", createdBy: adminId });
     }

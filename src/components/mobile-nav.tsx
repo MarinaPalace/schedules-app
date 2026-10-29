@@ -7,8 +7,9 @@ import { useTranslations } from "next-intl";
 import { Icon } from "@/components/icons";
 import { LanguageSwitcher } from "@/components/language-switcher";
 import { ThemeSwitcher, type Theme } from "@/components/theme-switcher";
+import { Count } from "@/components/nav";
 
-export type MobileNavItem = { href: string; label: string; icon: string; section?: string };
+export type MobileNavItem = { href: string; label: string; icon: string; section?: string; badge?: number };
 
 /** Bottom tab bar for phones: the main screens for this role + a menu with everything else. */
 export function MobileNav({
@@ -28,6 +29,8 @@ export function MobileNav({
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const isActive = (href: string) => pathname === href || pathname.startsWith(href + "/");
+  // Waiting items that are only reachable through the menu.
+  const hidden = all.filter((i) => !primary.some((p) => p.href === i.href)).reduce((s, i) => s + (i.badge ?? 0), 0);
 
   return (
     <>
@@ -39,7 +42,10 @@ export function MobileNav({
                 href={item.href}
                 className={`flex min-h-16 flex-col items-center justify-center gap-0.5 px-1 text-[11px] font-medium ${isActive(item.href) ? "text-blue-600" : "text-gray-500"}`}
               >
-                <Icon name={item.icon} />
+                <span className="relative">
+                  <Icon name={item.icon} />
+                  {item.badge ? <Count n={item.badge} className="absolute -top-1.5 -right-3" /> : null}
+                </span>
                 <span className="max-w-full truncate">{item.label}</span>
               </Link>
             </li>
@@ -50,7 +56,10 @@ export function MobileNav({
               onClick={() => setOpen(true)}
               className="flex min-h-16 w-full flex-col items-center justify-center gap-0.5 px-1 text-[11px] font-medium text-gray-500"
             >
-              <Icon name="menu" />
+              <span className="relative">
+                <Icon name="menu" />
+                {hidden ? <Count n={hidden} className="absolute -top-1.5 -right-3" /> : null}
+              </span>
               <span>{t("nav.menu")}</span>
             </button>
           </li>
@@ -75,6 +84,7 @@ export function MobileNav({
                   >
                     <Icon name={item.icon} className="h-5 w-5 shrink-0" />
                     <span className="truncate">{item.label}</span>
+                    {item.badge ? <Count n={item.badge} className="ml-auto shrink-0" /> : null}
                   </Link>
                 </li>
               ))}

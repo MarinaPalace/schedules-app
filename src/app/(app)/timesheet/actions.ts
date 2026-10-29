@@ -12,6 +12,7 @@ import { assertRole, canManageDepartment, getCurrentUser } from "@/lib/session";
 import { AppError } from "@/lib/app-error";
 import { errorMessage } from "@/lib/errors";
 import { getTranslations } from "next-intl/server";
+import { notifyCorrectionDecided, notifyCorrectionRequested } from "@/lib/notify/events";
 
 type Result = { error?: string; ok?: string };
 
@@ -121,6 +122,7 @@ export async function requestCorrection(raw: unknown): Promise<Result> {
         createdBy: me.id,
       });
     });
+    notifyCorrectionRequested(employeeId, date, me.id);
     revalidatePath("/timesheet");
     revalidatePath("/corrections");
     return { ok: (await getTranslations("timesheet"))("sentForApproval") };
@@ -140,7 +142,7 @@ export async function decideCorrection(raw: unknown): Promise<Result> {
     const { requestId, decision, note } = decisionSchema.parse(raw);
     const me = await assertRole(["top_manager", "admin"]);
 
-    await withActor(me.id, async (tx) => {
+    const decided = await withActor(me.id, async (tx) => {
       const req = await tx.query.correctionRequests.findFirst({ where: eq(correctionRequests.id, requestId) });
       if (!req) throw new AppError("requestNotFound");
       const done = await tx.query.correctionDecisions.findFirst({ where: eq(correctionDecisions.requestId, requestId) });
@@ -170,7 +172,10 @@ export async function decideCorrection(raw: unknown): Promise<Result> {
         });
       }
       await tx.insert(correctionDecisions).values({ requestId, decision, note: note || null, createdBy: me.id });
+      const emp = await tx.query.employees.findFirst({ where: eq(employees.id, req.employeeId) });
+      return { by: req.createdBy, name: emp ? `${emp.firstName} ${emp.lastName}` : "", date: req.workDate };
     });
+    notifyCorrectionDecided(decided.by, decided.name, decided.date, decision);
     revalidatePath("/corrections");
     revalidatePath("/timesheet");
     const t = await getTranslations("corrections");

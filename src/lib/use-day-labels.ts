@@ -8,6 +8,7 @@ export function useDayLabels(): DayLabels {
   return {
     dayOff: t("common.dayOff"),
     hourUnit: t("common.hourUnit"),
+    minuteUnit: t("common.minuteUnit"),
     absence: Object.fromEntries(ABSENCE_CODES.map((c) => [c, t(`absence.${c}`)])),
   };
 }

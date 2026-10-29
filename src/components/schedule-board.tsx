@@ -38,6 +38,8 @@ type Props = {
   showCost?: boolean;
   /** Cells whose current plan employees cannot see yet. */
   unpublished?: Record<string, true>;
+  /** Link to the PDF of the shown period. */
+  pdfHref?: string;
 };
 
 type Change = { employeeId: string; date: string; prev: ToolLite };
@@ -263,6 +265,11 @@ export function ScheduleBoard(props: Props) {
           >
             ⧉ {copying ? t("schedule.copying") : t("schedule.copyWeek")}
           </button>
+        )}
+        {props.pdfHref && (
+          <a href={props.pdfHref} target="_blank" rel="noopener" className="btn" title={t("schedule.pdfHint")}>
+            ⬇ PDF
+          </a>
         )}
       </div>
 

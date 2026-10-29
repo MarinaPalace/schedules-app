@@ -22,8 +22,6 @@
     "employeeNo": "Employee no.",
     "username": "Username",
     "password": "Password",
-    "newPassword": "New password",
-    "resetPassword": "Reset password",
     "role": "Role",
     "hours": "Hours",
     "cost": "Cost",
@@ -55,7 +53,8 @@
     "system": "system",
     "login": "login",
     "hourUnit": "h",
-    "close": "Close"
+    "close": "Close",
+    "minuteUnit": "min"
   },
   "decision": {
     "approved": "approved",
@@ -90,7 +89,10 @@
     "audit": "Audit log",
     "adminSection": "Admin",
     "menu": "Menu",
-    "team": "Team"
+    "team": "Team",
+    "swaps": "Shift swaps",
+    "account": "My account",
+    "notifications": "Notifications"
   },
   "login": {
     "subtitle": "Sign in with the username you got from your manager.",
@@ -98,7 +100,8 @@
     "signingIn": "Signing in…",
     "wrong": "Wrong username or password.",
     "deactivated": "This account is deactivated.",
-    "tooMany": "Too many attempts. Wait a few seconds and try again."
+    "tooMany": "Too many attempts. Wait a few seconds and try again.",
+    "forgot": "Forgot password?"
   },
   "errors": {
     "generic": "Something went wrong",
@@ -110,7 +113,7 @@
     "required": "{field} is required",
     "usernameFormat": "Username: 3–40 characters, letters, digits, dot, dash or underscore",
     "usernameTaken": "Username \"{username}\" is already taken",
-    "passwordShort": "Password must be at least 6 characters",
+    "passwordShort": "Password must be at least 8 characters",
     "rateFormat": "Hourly rate must be a positive amount, e.g. 7.50",
     "dateRequired": "Date is required",
     "chooseDepartment": "Choose a department",
@@ -152,7 +155,30 @@
     "notLinked": "Your login is not linked to an employee record",
     "cannotRequestFor": "You cannot request for this employee",
     "cannotDecide": "You cannot decide this request",
-    "ownAdvance": "You cannot decide your own advance"
+    "ownAdvance": "You cannot decide your own advance",
+    "swapPastDay": "Days in the past can't be swapped",
+    "swapTooFar": "That day is too far ahead",
+    "swapColleague": "Choose a colleague from your department",
+    "swapColleagueNoLogin": "This colleague has no app login, so they can't answer. Ask your manager.",
+    "swapDayApproved": "One of these days is already approved in Forma 76",
+    "swapNothing": "You both have the same plan on these days – nothing would change",
+    "swapOverlap": "One of you already has an open swap request for one of these days",
+    "swapNotYours": "This request is not addressed to you",
+    "swapExpired": "This request has expired – the day has passed",
+    "swapOwn": "You take part in this swap – another manager has to decide",
+    "swapNotWaiting": "The colleague hasn't accepted yet",
+    "swapStale": "The schedule for these days changed after the request. Reject it and ask them to send a new one.",
+    "advanceNotApproved": "Only approved advances can be marked as given",
+    "advanceAlreadyGiven": "Already marked as given",
+    "swapAbsence": "Leave and sick days can't be swapped – only shifts and days off",
+    "linkInvalid": "This link is invalid, expired or already used. Ask for a new one.",
+    "emailFormat": "Enter a valid email address",
+    "userInactive": "This login is blocked",
+    "passwordsDiffer": "The two passwords are different",
+    "currentPasswordWrong": "The current password is wrong",
+    "telegramNotConfigured": "Telegram isn't set up on the server",
+    "webhookNeedsHttps": "Telegram needs the app's public https address (set APP_URL)",
+    "noChannels": "Add an email or connect Telegram first"
   },
   "departments": {
     "title": "Departments",
@@ -172,8 +198,6 @@
     "hourlyRate": "Hourly rate (€ gross)",
     "rateFrom": "Rate from",
     "usernameOptional": "Username (optional – for app login)",
-    "passwordIfUsername": "Password (if username given)",
-    "canViewDepartment": "Can see department schedule",
     "showInactive": "Show inactive",
     "ratePerHour": "Rate/h",
     "login": "Login",
@@ -189,16 +213,19 @@
     "addRate": "Add rate",
     "appLogin": "App login",
     "blocked": "blocked",
-    "createLogin": "Create login",
+    "createLogin": "Create login & send link",
     "added": "{name} added",
     "addedWithLogin": "{name} added with login \"{username}\"",
     "rateAdded": "Rate added",
     "loginCreated": "Login created",
-    "passwordChanged": "Password for \"{username}\" changed",
     "phone": "Phone",
     "linkExisting": "Or connect an existing login",
     "linkLogin": "Connect",
-    "loginLinked": "Login connected"
+    "loginLinked": "Login connected",
+    "resetLinkReady": "Password link for {username} is ready",
+    "sendResetLink": "Send password reset link",
+    "resetHelp": "The person gets a link to choose a new password. You never see or type their password.",
+    "inviteHelp": "The person gets a link to choose their own password (by email if given, or via Telegram / QR below)."
   },
   "shifts": {
     "title": "Shift legends",
@@ -271,7 +298,8 @@
     "apply": "Set",
     "history": "History",
     "repeatWeek": "Repeat this week",
-    "undo": "Undo"
+    "undo": "Undo",
+    "pdfHint": "Download the shown period as PDF, with a legend of the hours"
   },
   "history": {
     "back": "← Schedule",
@@ -375,7 +403,9 @@
     "actualCost": "Actual cost",
     "projectedCost": "Projected cost",
     "noHours": "No hours this month yet.",
-    "activeEmployees": "active employees"
+    "activeEmployees": "active employees",
+    "unpublishedWarning": "{name}: {count} upcoming schedule changes are not published – staff don't see them yet.",
+    "openSchedule": "Open schedule"
   },
   "chart": {
     "budgetPace": "Budget pace",
@@ -398,13 +428,22 @@
     "decidedBy": "Decided by",
     "noneThisMonth": "No requests this month.",
     "sent": "Request sent to your manager",
-    "createdFor": "Request for {name} created"
+    "createdFor": "Request for {name} created",
+    "flow": "Request → approved by the manager or accounting → marked as given by accounting.",
+    "context": "This month: earned so far {earned} · advances already approved {advanced}",
+    "toGive": "Approved – to hand out ({count})",
+    "nothingToGive": "Nothing to hand out.",
+    "approvedBy": "Approved by {name}, {when}",
+    "markGiven": "Mark as given",
+    "waitingAccounting": "waiting for accounting",
+    "givenThisMonth": "given:",
+    "givenBy": "Given · {name}, {when}",
+    "given": "given"
   },
   "me": {
     "title": "My schedule",
     "hello": "Hello, {name}",
     "notLinked": "Your login is not linked to an employee record.",
-    "departmentSchedule": "Department schedule",
     "next7": "Next 7 days",
     "notPlanned": "not planned yet",
     "approvedHours": "Approved hours",
@@ -420,7 +459,12 @@
     "advanceTitle": "Salary advance",
     "request": "Request",
     "backToMine": "← My schedule",
-    "noDeptAccess": "You don't have access to the department schedule. Ask your manager."
+    "notPublished": "not published yet",
+    "viewList": "List",
+    "viewTable": "Table",
+    "wholeDepartment": "Whole department",
+    "tableHelp": "Tap one of your coming days to ask a colleague to swap it.",
+    "tableHelpTeam": "Tap a colleague's day to ask them for a swap. Only published plans are shown."
   },
   "team": {
     "title": "Team",
@@ -435,5 +479,230 @@
     "light": "Light",
     "dark": "Dark",
     "system": "Auto"
+  },
+  "pdf": {
+    "generated": "Printed {when}",
+    "includesUnpublished": "includes changes not yet published",
+    "customHours": "number = custom hours (paid hours)",
+    "legend": "Legend",
+    "page": "Page {n} of {of}"
+  },
+  "swaps": {
+    "title": "Shift swaps",
+    "managerHelp": "A colleague has already agreed to each swap below. Approving exchanges the two plans, and both people see the change straight away.",
+    "waitingYou": "Waiting for your approval ({count})",
+    "nothing": "Nothing waiting.",
+    "ownNeedsOther": "You take part in this swap – another manager or the GM has to decide.",
+    "waitingColleague": "Waiting for the colleague's answer ({count})",
+    "recent": "Recent",
+    "noneYet": "No swaps yet.",
+    "status": {
+      "waiting_colleague": "waiting for colleague",
+      "waiting_manager": "waiting for manager",
+      "expired": "expired",
+      "approved": "approved",
+      "declined": "declined by colleague",
+      "cancelled": "cancelled",
+      "rejected": "rejected by manager"
+    },
+    "nothingPlanned": "nothing planned",
+    "you": "You",
+    "askedAt": "asked {when}",
+    "newTitle": "Ask for a swap",
+    "newHelp": "Exchange your plan with a colleague for one day, or for two days. Your colleague accepts first, then your manager approves.",
+    "stepDay": "Which of your days?",
+    "stepWho": "With whom?",
+    "noLogin": "no app login – ask your manager",
+    "noColleagues": "No colleagues in your department.",
+    "stepSecond": "Swap a second day too",
+    "secondHelp": "For example: they take your Thursday and you take their Saturday. On each day you exchange plans.",
+    "preview": "After the swap",
+    "notePlaceholder": "e.g. doctor's appointment",
+    "send": "Send to {name}",
+    "sendPlain": "Send request",
+    "afterSend": "Nothing changes until your colleague and your manager both agree.",
+    "sent": "Request sent to {name}",
+    "askedYou": "Colleagues ask you to swap ({count})",
+    "accept": "Accept",
+    "decline": "Decline",
+    "acceptHelp": "After you accept, the manager decides. Until then your schedule stays as it is.",
+    "mineNone": "No swap requests.",
+    "cancel": "Cancel request",
+    "cancelConfirm": "Cancel this swap request?"
+  },
+  "setPassword": {
+    "welcome": "Welcome, {name}!",
+    "title": "Choose a new password",
+    "new": "New password",
+    "rule": "At least {min} characters",
+    "repeat": "Repeat the password",
+    "show": "Show password",
+    "save": "Save and sign in"
+  },
+  "forgot": {
+    "title": "Forgot password",
+    "help": "We'll send a link to your email or Telegram.",
+    "send": "Send me a link",
+    "sentIfPossible": "If your account has an email or Telegram, a link is on its way (valid 2 hours). No message? Ask your manager.",
+    "back": "← Back to sign in"
+  },
+  "account": {
+    "title": "My account",
+    "notifications": "Notifications",
+    "notificationsHelp": "Get swaps, published schedules and decisions by email and/or Telegram.",
+    "email": "Email",
+    "emailOptional": "Email (optional)",
+    "emailOff": "Email sending isn't set up yet – ask the admin.",
+    "byEmail": "Send me notifications by email",
+    "byTelegram": "Send me notifications on Telegram",
+    "connected": "connected",
+    "notConnected": "not connected",
+    "connectedAs": "Connected: {name}",
+    "disconnect": "Disconnect",
+    "disconnectConfirm": "Stop Telegram messages?",
+    "telegramOff": "Telegram isn't set up yet – ask the admin.",
+    "telegramHelp": "Open our bot {bot} and press Start – that's all.",
+    "connectTelegram": "Connect Telegram",
+    "openTelegram": "Open Telegram",
+    "afterStart": "After pressing Start in Telegram, come back here.",
+    "checkAgain": "I pressed Start",
+    "sendTest": "Send me a test message",
+    "testResult": "Email: {email, select, sent {sent ✓} failed {not sent ✗} other {–}} · Telegram: {telegram, select, sent {sent ✓} failed {not sent ✗} other {–}}",
+    "changePassword": "Change password",
+    "currentPassword": "Current password",
+    "passwordChanged": "Password changed. Other devices were signed out."
+  },
+  "links": {
+    "sentEmail": "Link sent by email",
+    "failedEmail": "Email could not be sent",
+    "sentTelegram": "Link sent on Telegram",
+    "failedTelegram": "Telegram message could not be sent",
+    "notSent": "Not sent automatically (no email/Telegram yet) – give the person the link or QR below.",
+    "inPerson": "Give it in person: scan or copy",
+    "copyLink": "Copy link",
+    "copied": "Copied",
+    "copyManually": "Copy this link:",
+    "linkValid": "Works once. Invites last 7 days, reset links 2 hours.",
+    "telegramTitle": "Connect Telegram",
+    "copyTelegram": "Copy Telegram link",
+    "telegramHelp": "The person scans it and presses Start – the bot then sends the password link there too.",
+    "done": "Done"
+  },
+  "notifyAdmin": {
+    "title": "Notifications",
+    "help": "Email and Telegram messages the app sends, and how they are set up.",
+    "email": "Email",
+    "emailOn": "Sending as {from}",
+    "emailSetup": "Not set up: add SMTP_URL and MAIL_FROM to the server settings (see README).",
+    "botOn": "Bot {bot}",
+    "telegramSetup": "Not set up: add TELEGRAM_BOT_TOKEN, TELEGRAM_BOT_USERNAME and TELEGRAM_WEBHOOK_SECRET (see README).",
+    "webhookOn": "Receiving messages",
+    "webhookOff": "Not receiving messages yet – press the button (needs the public address {url}).",
+    "connectWebhook": "Connect bot to this app",
+    "log": "Sent messages",
+    "when": "When",
+    "to": "To",
+    "what": "Message",
+    "status": "Status",
+    "empty": "Nothing sent yet.",
+    "state": {
+      "sent": "sent",
+      "failed": "failed",
+      "not_configured": "not set up"
+    }
+  },
+  "notify": {
+    "open": "Open",
+    "swap": {
+      "asked": {
+        "subject": "{requester} asks you to swap",
+        "text": "{requester} would like to swap with you. Open the app to accept or decline."
+      },
+      "toApprove": {
+        "subject": "Swap to approve: {requester} ⇄ {colleague}",
+        "text": "{requester} and {colleague} agreed to swap. It needs your approval."
+      },
+      "accepted": {
+        "subject": "{colleague} accepted your swap",
+        "text": "{colleague} accepted. Now your manager decides – nothing changes until then."
+      },
+      "declined": {
+        "subject": "{colleague} declined your swap",
+        "text": "{colleague} declined the swap. Your schedule stays as it is."
+      },
+      "cancelled": {
+        "subject": "{requester} cancelled the swap",
+        "text": "{requester} cancelled the swap request. Nothing changes."
+      },
+      "approved": {
+        "subject": "Swap approved: {requester} ⇄ {colleague}",
+        "text": "The manager approved the swap. Your schedule has changed:"
+      },
+      "rejected": {
+        "subject": "Swap rejected: {requester} ⇄ {colleague}",
+        "text": "The manager rejected the swap. Your schedule stays as it is."
+      }
+    },
+    "published": {
+      "subject": "Your schedule {from} – {to}",
+      "text": "Your manager published the schedule. Your days:"
+    },
+    "advance": {
+      "requested": {
+        "subject": "Advance request: {name}",
+        "text": "{name} asks for a salary advance of {amount}."
+      },
+      "approved": {
+        "subject": "Advance approved: {amount}",
+        "text": "Your advance of {amount} was approved. Accounting will hand it out."
+      },
+      "rejected": {
+        "subject": "Advance not approved: {amount}",
+        "text": "Your advance request of {amount} was not approved."
+      },
+      "given": {
+        "subject": "Advance given: {amount}",
+        "text": "Your advance of {amount} was marked as given by accounting."
+      }
+    },
+    "correction": {
+      "requested": {
+        "subject": "Forma 76 correction: {name}",
+        "text": "A change to an approved day ({name}, {date}) waits for your decision."
+      },
+      "approved": {
+        "subject": "Correction approved: {name}, {date}",
+        "text": "The change for {name} on {date} was approved."
+      },
+      "rejected": {
+        "subject": "Correction rejected: {name}, {date}",
+        "text": "The change for {name} on {date} was rejected."
+      }
+    },
+    "account": {
+      "setup": {
+        "subject": "Your login",
+        "text": "Hello, {name}!\nAn account was created for you in the hotel's schedule app.\nYour username: {username}\nOpen the link and choose your own password. It works once and is valid for 7 days.",
+        "button": "Choose my password"
+      },
+      "reset": {
+        "subject": "Password reset",
+        "text": "Hello, {name}!\nA new password was requested for {username}.\nOpen the link and choose a new password. It works once and is valid for 2 hours.\nIf you didn't ask for this, ignore this message.",
+        "button": "Choose a new password"
+      },
+      "passwordChanged": {
+        "subject": "Your password was changed",
+        "text": "Your password was just changed. If this wasn't you, tell your manager right away."
+      }
+    },
+    "bot": {
+      "help": "This bot sends you messages from the hotel's schedule app. To connect, open My account → Telegram in the app.",
+      "badLink": "This link doesn't work any more. Open My account → Telegram in the app for a new one, or ask your manager.",
+      "connected": "Connected ✓ Hello, {name}! You'll get your schedules and requests here."
+    },
+    "test": {
+      "subject": "Test message",
+      "text": "This is a test. If you can read it, notifications work."
+    }
   }
 }

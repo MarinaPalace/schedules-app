@@ -1,4 +1,8 @@
 import { cookies } from "next/headers";
+import { eq } from "drizzle-orm";
+import { getLocale } from "next-intl/server";
+import { db } from "@/db/client";
+import { user as userTable } from "@/db/schema";
 import { getTranslations } from "next-intl/server";
 import { requireUser, type Role } from "@/lib/session";
 import { signOut } from "@/app/actions/auth";
@@ -6,6 +10,7 @@ import { Nav } from "@/components/nav";
 import { MobileNav } from "@/components/mobile-nav";
 import { LanguageSwitcher } from "@/components/language-switcher";
 import { ThemeSwitcher, type Theme } from "@/components/theme-switcher";
+import { loadBadges, type Badges } from "@/lib/badges";
 
 type NavKey =
   | "dashboard"
@@ -13,6 +18,7 @@ type NavKey =
   | "forma76"
   | "team"
   | "corrections"
+  | "swaps"
   | "advances"
   | "mySchedule"
   | "budgets"
@@ -20,7 +26,9 @@ type NavKey =
   | "employees"
   | "shifts"
   | "users"
-  | "audit";
+  | "audit"
+  | "account"
+  | "notifications";
 
 const NAV: Array<{ href: string; key: NavKey; icon: string; admin?: boolean; roles: Role[] }> = [
   { href: "/dashboard", key: "dashboard", icon: "dashboard", roles: ["manager", "top_manager", "owner", "accountant", "admin"] },
@@ -28,19 +36,22 @@ const NAV: Array<{ href: string; key: NavKey; icon: string; admin?: boolean; rol
   { href: "/timesheet", key: "forma76", icon: "forma76", roles: ["manager", "top_manager", "owner", "accountant", "admin"] },
   { href: "/team", key: "team", icon: "team", roles: ["manager", "top_manager", "owner", "admin"] },
   { href: "/corrections", key: "corrections", icon: "corrections", roles: ["manager", "top_manager", "owner", "admin"] },
+  { href: "/swaps", key: "swaps", icon: "swaps", roles: ["manager", "top_manager", "owner", "admin"] },
   { href: "/advances", key: "advances", icon: "advances", roles: ["manager", "top_manager", "owner", "accountant", "admin"] },
   { href: "/me", key: "mySchedule", icon: "mySchedule", roles: ["employee", "manager", "top_manager", "admin"] },
+  { href: "/account", key: "account", icon: "bell", roles: ["employee", "manager", "top_manager", "owner", "accountant", "admin"] },
   { href: "/admin/budgets", key: "budgets", icon: "budgets", admin: true, roles: ["owner", "admin", "top_manager"] },
   { href: "/admin/departments", key: "departments", icon: "admin", admin: true, roles: ["admin", "owner", "top_manager"] },
   { href: "/admin/employees", key: "employees", icon: "team", admin: true, roles: ["admin", "owner", "top_manager"] },
   { href: "/admin/shifts", key: "shifts", icon: "schedule", admin: true, roles: ["admin", "owner", "top_manager"] },
   { href: "/admin/users", key: "users", icon: "admin", admin: true, roles: ["admin", "owner"] },
+  { href: "/admin/notifications", key: "notifications", icon: "bell", admin: true, roles: ["admin", "owner"] },
   { href: "/admin/audit", key: "audit", icon: "forma76", admin: true, roles: ["admin", "owner"] },
 ];
 
 /** What sits in the phone's bottom bar for each role (the rest is under "Menu"). */
 const PRIMARY: Record<Role, NavKey[]> = {
-  employee: ["mySchedule"],
+  employee: ["mySchedule", "account"],
   manager: ["schedule", "forma76", "team", "mySchedule"],
   top_manager: ["dashboard", "schedule", "forma76", "team"],
   admin: ["dashboard", "schedule", "forma76", "team"],
@@ -50,7 +61,14 @@ const PRIMARY: Record<Role, NavKey[]> = {
 
 export default async function AppLayout({ children }: LayoutProps<"/">) {
   const user = await requireUser();
-  const t = await getTranslations();
+  const [t, badges, locale, saved] = await Promise.all([
+    getTranslations(),
+    loadBadges(user),
+    getLocale(),
+    db.query.user.findFirst({ where: eq(userTable.id, user.id), columns: { locale: true } }),
+  ]);
+  // Email/Telegram messages use the language the person actually uses the app in.
+  if (saved && saved.locale !== locale) await db.update(userTable).set({ locale }).where(eq(userTable.id, user.id));
   const savedTheme = (await cookies()).get("theme")?.value;
   const theme: Theme = savedTheme === "light" || savedTheme === "dark" ? savedTheme : "system";
 
@@ -59,6 +77,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
     href: n.href,
     label: t(`nav.${n.key}`),
     icon: n.icon,
+    badge: badges[n.key as keyof Badges] || undefined,
     section: n.admin ? t("nav.adminSection") : undefined,
   }));
   const primary = PRIMARY[user.role].map((key) => items[visible.findIndex((n) => n.key === key)]).filter(Boolean);

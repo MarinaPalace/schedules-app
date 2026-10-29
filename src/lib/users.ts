@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { hashPassword } from "better-auth/crypto";
 import { eq } from "drizzle-orm";
 import { account, user } from "@/db/schema";
@@ -18,7 +19,7 @@ function placeholderEmail(username: string): string {
 
 export async function createLogin(
   tx: Tx,
-  input: { username: string; name: string; password: string; role: Role },
+  input: { username: string; name: string; password: string; role: Role; contactEmail?: string | null },
 ): Promise<string> {
   const username = normalizeUsername(input.username);
   if (!USERNAME_RE.test(username)) {
@@ -36,6 +37,7 @@ export async function createLogin(
     username,
     displayUsername: username,
     role: input.role,
+    contactEmail: input.contactEmail ?? null,
   });
   await tx.insert(account).values({
     id: crypto.randomUUID(),
@@ -47,8 +49,15 @@ export async function createLogin(
   return id;
 }
 
+/** Unknown to anyone: new accounts get one until the person sets their own via the link. */
+export function randomPassword(): string {
+  return randomBytes(24).toString("base64url");
+}
+
+export const PASSWORD_MIN = 8;
+
 export async function setPassword(tx: Tx, userId: string, password: string): Promise<void> {
-  if (password.length < 6) throw new AppError("passwordShort");
+  if (password.length < PASSWORD_MIN) throw new AppError("passwordShort");
   await tx
     .update(account)
     .set({ password: await hashPassword(password), updatedAt: new Date() })
