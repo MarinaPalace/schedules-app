@@ -14,14 +14,15 @@ import { notifyPublished } from "@/lib/notify/events";
 import { loadUnpublishedEmployees } from "@/lib/published";
 import { errorMessage } from "@/lib/errors";
 import { canManageDepartment, getCurrentUser } from "@/lib/session";
-import { paidMinutes, parseSegments } from "@/lib/shifts";
+import { legendFields, legendHours } from "@/lib/legend-input";
+import type { TemplateLite } from "@/lib/cell-view";
 
 const toolSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("template"), templateId: z.uuid() }),
   z.object({ type: z.literal("off") }),
   z.object({ type: z.literal("none") }),
   z.object({ type: z.literal("absence"), code: z.string() }),
-  z.object({ type: z.literal("custom"), text: z.string() }),
+  z.object({ type: z.literal("custom"), text: z.string(), breakMinutes: z.number().int().min(0).max(240).optional() }),
 ]);
 export type Tool = z.infer<typeof toolSchema>;
 
@@ -64,9 +65,8 @@ export async function saveCells(departmentId: string, input: unknown): Promise<{
           break;
         }
         case "custom": {
-          const segments = parseSegments(tool.text);
-          if (!segments) throw new AppError("hoursFormat");
-          value = { kind: "shift", segments, paidMinutes: paidMinutes(segments) };
+          const breakMinutes = tool.breakMinutes ?? 0;
+          value = { kind: "shift", ...legendHours(tool.text, breakMinutes), breakMinutes };
           break;
         }
         case "absence":
@@ -163,6 +163,25 @@ export async function copyPreviousWeek(departmentId: string, monday: string, emp
     });
     revalidatePath("/schedule");
     return { copied: rows.length };
+  } catch (e) {
+    return { error: await errorMessage(e) };
+  }
+}
+
+/**
+ * "Save as legend" from the schedule: a new shift legend for this department (managers may create them
+ * for their own departments; admins also on the Legends page). Returns it so the board can use it at once.
+ */
+export async function createDepartmentLegend(departmentId: string, input: unknown): Promise<{ error?: string; template?: TemplateLite }> {
+  try {
+    z.uuid().parse(departmentId);
+    const me = await authorize(departmentId);
+    const raw = z.object({ text: z.string() }).passthrough().parse(input);
+    const data = legendFields.parse(raw);
+    const hours = legendHours(raw.text, data.breakMinutes);
+    const [t] = await withActor(me.id, (tx) => tx.insert(shiftTemplates).values({ ...data, ...hours, departmentId }).returning());
+    // No revalidatePath: it would refresh the board mid-edit and drop the cell that is about to get this legend.
+    return { template: { id: t.id, code: t.code, name: t.name, color: t.color, segments: t.segments, paidMinutes: t.paidMinutes, breakMinutes: t.breakMinutes } };
   } catch (e) {
     return { error: await errorMessage(e) };
   }

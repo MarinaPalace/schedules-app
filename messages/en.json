@@ -290,7 +290,8 @@
     "mode": {
       "day": "Day",
       "person": "Person",
-      "table": "Table"
+      "table": "Table",
+      "timeline": "Timeline"
     },
     "absent": "Absent",
     "notPlanned": "Not planned",
@@ -299,7 +300,17 @@
     "history": "History",
     "repeatWeek": "Repeat this week",
     "undo": "Undo",
-    "pdfHint": "Download the shown period as PDF, with a legend of the hours"
+    "pdfHint": "Download the shown period as PDF, with a legend of the hours",
+    "customPrefix": "P",
+    "customName": "custom hours",
+    "legend": "Legend",
+    "breakMin": "Break (min)",
+    "customPaid": "Paid: {hours} h",
+    "saveAsLegend": "Save as a new legend for this department",
+    "legendNamePlaceholder": "e.g. Short morning",
+    "saveLegendApply": "Save legend and apply",
+    "customHelp": "Without saving, these hours still appear in the legend with an automatic code (P1, P2…).",
+    "customHelpNoSave": "These hours appear in the legend with an automatic code (P1, P2…)."
   },
   "history": {
     "back": "← Schedule",
@@ -483,7 +494,6 @@
   "pdf": {
     "generated": "Printed {when}",
     "includesUnpublished": "includes changes not yet published",
-    "customHours": "number = custom hours (paid hours)",
     "legend": "Legend",
     "page": "Page {n} of {of}"
   },
@@ -704,5 +714,17 @@
       "subject": "Test message",
       "text": "This is a test. If you can read it, notifications work."
     }
+  },
+  "timeline": {
+    "whoIsThere": "Who is at work",
+    "from": "From",
+    "to": "To",
+    "atLeast": "at least at work the whole time {from}–{to}",
+    "full": "{count, plural, one {# person} other {# people}} there the whole time",
+    "part": "{count, plural, one {# person} other {# people}} only part of the time",
+    "badRange": "Choose an end time after the start",
+    "staff": "Staff",
+    "perHour": "Staff per hour",
+    "help": "Bars show who works when. The blue row counts people per half hour; tap a day in the week chart to see it."
   }
 }

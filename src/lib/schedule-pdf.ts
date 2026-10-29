@@ -131,8 +131,9 @@ export function renderSchedulePdf(input: PdfInput): Promise<Buffer> {
   }
 
   // Legend: shift boxes in columns, then the other symbols on one wrapped line.
-  const colW = 250;
-  const perRow = Math.max(1, Math.floor((right - left) / colW));
+  // Two columns: split shifts with a break need the room.
+  const perRow = 2;
+  const colW = (right - left) / perRow;
   const legendRows = Math.ceil(input.legend.length / perRow);
   const legendH = 22 + legendRows * 15 + 18;
 

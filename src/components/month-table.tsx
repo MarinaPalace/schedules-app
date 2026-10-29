@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { isWeekend, weekdayShort } from "@/lib/calendar";
-import { EMPTY_CELL, type CellView } from "@/lib/cell-view";
+import { cellLabel, EMPTY_CELL, type CellView, type CustomLegendRow } from "@/lib/cell-view";
 import { formatHours } from "@/lib/shifts";
 import { ScrollToToday } from "@/components/scroll-to-today";
 
@@ -10,7 +10,21 @@ export type MonthTableRow = { id: string; name: string; position: string | null;
  * Read-only schedule grid for employees (no money). From today on, tapping a colleague's day
  * starts a swap request for that day; tapping your own day starts one with that day chosen.
  */
-export function MonthTable({ dates, rows, today, locale, swapLabel }: { dates: string[]; rows: MonthTableRow[]; today: string; locale: string; swapLabel: string }) {
+export function MonthTable({
+  dates,
+  rows,
+  today,
+  locale,
+  swapLabel,
+  codes,
+}: {
+  dates: string[];
+  rows: MonthTableRow[];
+  today: string;
+  locale: string;
+  swapLabel: string;
+  codes: Map<string, CustomLegendRow>;
+}) {
   return (
     <ScrollToToday className="-mx-4 overflow-x-auto border-y border-gray-200 bg-surface sm:mx-0 sm:rounded-xl sm:border">
       <table className="w-full border-collapse text-sm">
@@ -44,7 +58,7 @@ export function MonthTable({ dates, rows, today, locale, swapLabel }: { dates: s
                 </td>
                 {dates.map((d) => {
                   const c = r.cells[d] ?? EMPTY_CELL;
-                  const chip = <Chip c={c} />;
+                  const chip = <Chip c={c} label={cellLabel(c, codes)} />;
                   const href = d >= today ? (r.isMe ? `/me/swap?date=${d}` : `/me/swap?date=${d}&with=${r.id}`) : null;
                   return (
                     <td key={d} title={c.title} className={`h-10 border-b border-l border-gray-100 p-0.5 text-center ${isWeekend(d) && !r.isMe ? "bg-gray-50" : ""}`}>
@@ -68,7 +82,7 @@ export function MonthTable({ dates, rows, today, locale, swapLabel }: { dates: s
   );
 }
 
-function Chip({ c }: { c: CellView }) {
+function Chip({ c, label }: { c: CellView; label: string }) {
   return (
     <span
       className={`inline-flex h-8 w-full min-w-8 items-center justify-center rounded-md text-xs font-semibold ${
@@ -76,7 +90,7 @@ function Chip({ c }: { c: CellView }) {
       }`}
       style={c.kind === "shift" ? { background: c.color ?? "#64748b" } : undefined}
     >
-      {c.kind === "none" ? "" : c.label}
+      {c.kind === "none" ? "" : label}
     </span>
   );
 }

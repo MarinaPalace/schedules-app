@@ -71,8 +71,8 @@ export default async function SchedulePage({ searchParams }: PageProps<"/schedul
   // Remembered choice, otherwise "day" on phones and "table" on bigger screens.
   const savedMode = (await cookies()).get("scheduleMode")?.value;
   const isPhone = /Mobi|Android|iPhone/i.test((await headers()).get("user-agent") ?? "");
-  const defaultMode: BoardMode = sp.person ? "person" : savedMode === "day" || savedMode === "person" || savedMode === "table" ? savedMode : isPhone ? "day" : "table";
-  const lite = ({ id, code, name, color, segments, paidMinutes }: (typeof allTemplates)[number]) => ({ id, code, name, color, segments, paidMinutes });
+  const defaultMode: BoardMode = sp.person ? "person" : savedMode === "day" || savedMode === "person" || savedMode === "table" || savedMode === "timeline" ? savedMode : isPhone ? "day" : "table";
+  const lite = ({ id, code, name, color, segments, paidMinutes, breakMinutes }: (typeof allTemplates)[number]) => ({ id, code, name, color, segments, paidMinutes, breakMinutes });
 
   return (
     <div className="space-y-4">

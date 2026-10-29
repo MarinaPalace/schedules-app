@@ -2,7 +2,7 @@
 
 Status legend: `[x]` done · `[~]` in progress / partial · `[ ]` pending
 
-Last updated: 2026-10-29 (Phases 0–5, 7, 9 and 10 done; Phase 8 = AI, planned)
+Last updated: 2026-10-29 (Phases 0–5, 7, 9, 10 and 11 done; Phase 8 = AI, planned)
 
 ---
 
@@ -198,9 +198,19 @@ Dashboard numbers per department & month:
 
 **Not done:** real delivery with your provider/bot (needs your SMTP details and a bot from @BotFather – see README); Telegram only reaches people who pressed Start once.
 
+### Phase 11 — Custom hours in the legend, timeline (done 2026-10-29)
+- [x] "Other hours" in the shift picker (and the paint toolbar) now take an **unpaid break**; the picker shows the paid hours and refuses a break longer than the shift
+- [x] **Save as a new legend** right from the picker (code, name, colour) – managers can create legends for their own departments; it is applied to the cell and appears in the toolbar at once
+- [x] Hours entered without a legend get an **automatic code** (P1, P2… / Р1, Р2…; same hours + break = same code, numbered by start time) – shown in every grid instead of a bare number, and listed in the **legend** with times, break and paid hours: under the schedule, in the employee table and in the PDF
+- [x] **Timeline** view (4th mode next to Day/Person/Table): a bar per person over the day, **staff per half hour**, "who is at work from–to" (e.g. 07:00–12:00 → at least N the whole time, who is there the whole time, who only part of it), and the week as a **staff-per-hour heat map**. Overnight shifts count on both days; split shifts and breaks between blocks are handled
+- [x] The counting lives in `src/lib/coverage.ts` (pure functions with tests) so the AI assistant (Phase 8) can check suggested schedules against staffing needs
+- Known limit: in week view an overnight shift from the Sunday before the shown week isn't counted on Monday morning
+
+**Phase 11 verification (2026-10-29):** typecheck, lint, 27 unit tests (incl. coverage: overnight, split shifts, whole/part presence, minimum staff; automatic codes), production build. Browser run (21 checks): break shown and too-long break refused, same hours → same code, legend lines, save-as-legend (applied, in toolbar, duplicate code refused), toolbar custom paint, all kept after reload, timeline 07–12 and 16–20 counts, half-hour count, no overflow on a phone, PDF legend, employee table legend, admin legends page. Earlier suites re-run: all pass. Bugs found and fixed: saving a legend refreshed the board and hid the change; closing the picker while saving made it reopen.
+
 ### Phase 8 — AI schedule assistant (future)
 - [ ] Admin enters an OpenRouter API key (stored server-side only, encrypted; never sent to the browser) and picks a model
-- [ ] Per department: staffing needs per day/shift (e.g. Morning 2, Afternoon 2, Night 1) – also useful without AI as a coverage warning
+- [ ] Per department: staffing needs per day/time (e.g. 07:00–12:00 at least 3) – also useful without AI as a coverage warning; checked with `src/lib/coverage.ts` (`minStaff`, `countBySlot`)
 - [ ] "Suggest schedule" for a week/month: sends staff, legends, last weeks' pattern, absences, budget and needs (no names/pay if not needed) → model returns cells as JSON
 - [ ] Suggestion is applied as normal **unpublished** changes (amber dots) with one-tap **Undo**; manager reviews, edits, then publishes – the existing save/undo/publish flow already supports this
 - [ ] Log every AI suggestion in the audit trail
@@ -259,3 +269,4 @@ Local database notes:
 - 2026-10-28 — Fixed "Failed query … phone" again: a dev server started before a migration kept the old schema. Local migrations are now also checked on each request (cheap, once per new migration), so no restart is needed.
 - 2026-10-29 — Phase 9: shift swaps (colleague → manager), employee table + whole-department view, accounting approves/hands out advances, schedule PDF with legend, navigation counters, unpublished-changes warning. End-user review findings listed under Phase 9.
 - 2026-10-29 — Phase 10: email + Telegram notifications, password set-up/reset links instead of typed passwords, My account page, Admin → Notifications.
+- 2026-10-29 — Phase 11: break + "save as legend" for custom hours, automatic legend codes (P1…), Timeline view with staff per half hour and "who is at work from–to".

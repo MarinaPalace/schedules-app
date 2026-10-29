@@ -5,7 +5,7 @@ import { db } from "@/db/client";
 import { departments, employees } from "@/db/schema";
 import { loadAdvances } from "@/lib/advances";
 import { addDays, addMonths, dateRange, dayLabel, isMonth, monthBounds, monthLabel, monthOf } from "@/lib/calendar";
-import { viewOfEntry, type CellView } from "@/lib/cell-view";
+import { customCodes, CUSTOM_COLOR, viewOfEntry, type CellView } from "@/lib/cell-view";
 import { describeDay } from "@/lib/describe";
 import { key, loadRates, loadShiftTemplates, loadTimesheet } from "@/lib/data";
 import { loadCutoffs, loadPublishedSchedule } from "@/lib/published";
@@ -123,6 +123,11 @@ export default async function MePage({ searchParams }: PageProps<"/me">) {
         })
       : [];
 
+  const codes = customCodes(
+    tableRows.flatMap((r) => Object.values(r.cells)),
+    t("schedule.customPrefix"),
+  );
+
   return (
     <div className={`space-y-5 ${view === "table" ? "" : "max-w-2xl"}`}>
       <div>
@@ -229,7 +234,7 @@ export default async function MePage({ searchParams }: PageProps<"/me">) {
 
         {view === "table" ? (
           <>
-            <MonthTable dates={dateRange(from, to)} rows={tableRows} today={today} locale={locale} swapLabel={t("swaps.newTitle")} />
+            <MonthTable dates={dateRange(from, to)} rows={tableRows} today={today} locale={locale} swapLabel={t("swaps.newTitle")} codes={codes} />
             <p className="text-xs text-gray-500">{t(team ? "me.tableHelpTeam" : "me.tableHelp")}</p>
             <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-600">
               {templates
@@ -239,9 +244,19 @@ export default async function MePage({ searchParams }: PageProps<"/me">) {
                     <span className="rounded px-1.5 py-0.5 font-semibold text-white" style={{ background: tpl.color }}>
                       {tpl.code}
                     </span>
-                    {tpl.segments.map((s) => `${s.start}–${s.end}`).join(" / ")} · {formatHours(tpl.paidMinutes)} {labels.hourUnit}
+                    {tpl.segments.map((s) => `${s.start}–${s.end}`).join(" / ")}
+                    {tpl.breakMinutes ? ` (−${tpl.breakMinutes} ${labels.minuteUnit})` : ""} · {formatHours(tpl.paidMinutes)} {labels.hourUnit}
                   </span>
                 ))}
+              {[...codes.values()].map((r) => (
+                <span key={r.key} className="inline-flex items-center gap-1">
+                  <span className="rounded px-1.5 py-0.5 font-semibold text-white" style={{ background: CUSTOM_COLOR }}>
+                    {r.code}
+                  </span>
+                  {r.times}
+                  {r.breakMinutes ? ` (−${r.breakMinutes} ${labels.minuteUnit})` : ""} · {formatHours(r.paidMinutes)} {labels.hourUnit} · {t("schedule.customName")}
+                </span>
+              ))}
             </div>
           </>
         ) : (

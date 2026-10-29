@@ -3,7 +3,7 @@ import { getLocale, getTranslations } from "next-intl/server";
 import { db } from "@/db/client";
 import { departments } from "@/db/schema";
 import { dateRange, daysBetween, isISODate, isWeekend, monthBounds, monthLabel, monthOf, weekdayShort } from "@/lib/calendar";
-import { viewOfEntry } from "@/lib/cell-view";
+import { cellLabel, customCodes, CUSTOM_COLOR, viewOfEntry, type CellView } from "@/lib/cell-view";
 import { ABSENCE_CODES } from "@/lib/codes";
 import { key, loadDepartmentEmployees, loadSchedule, loadShiftTemplates } from "@/lib/data";
 import { getDayLabels } from "@/lib/day-labels";
@@ -48,28 +48,33 @@ export async function GET(request: Request) {
   const dates = dateRange(from, to);
   const today = todayISO();
   const used = new Set<string>();
-  let custom = false;
+  const views = new Map<string, CellView>();
+  for (const p of people) {
+    for (const d of dates) {
+      const e = plan.get(key(p.id, d));
+      if (e && e.kind !== "none") views.set(key(p.id, d), viewOfEntry(e, templates, labels));
+    }
+  }
+  // Hours entered without a legend get the same automatic codes as on screen, and a legend line.
+  const codes = customCodes(views.values(), t("schedule.customPrefix"));
   const dayMinutes = dates.map(() => 0);
   const rows = people.map((p) => {
     let minutes = 0;
     const cells = dates.map((d, i): PdfCell => {
       const e = plan.get(key(p.id, d));
-      if (!e || e.kind === "none") return { kind: "none", label: "", color: null };
-      const v = viewOfEntry(e, templates, labels);
+      const v = views.get(key(p.id, d));
+      if (!e || !v) return { kind: "none", label: "", color: null };
       minutes += e.paidMinutes;
       dayMinutes[i] += e.paidMinutes;
-      if (e.kind === "shift") {
-        if (e.shiftTemplateId && v.tool.type === "template") used.add(e.shiftTemplateId);
-        else custom = true;
-      }
+      if (e.shiftTemplateId && v.tool.type === "template") used.add(e.shiftTemplateId);
       const sub = e.kind === "shift" ? e.segments.map((s) => `${shortTime(s.start)}–${shortTime(s.end)}`).join(" / ") : undefined;
-      return { kind: v.kind, label: v.label, sub, color: v.color };
+      return { kind: v.kind, label: cellLabel(v, codes), sub, color: v.color };
     });
     return { name: `${p.lastName} ${p.firstName}`, position: p.position, cells, hours: formatHours(minutes), highlight: !manages && p.id === me?.id };
   });
 
   const deptTemplates = templates.filter((tpl) => !tpl.departmentId || tpl.departmentId === dept.id);
-  const legendTemplates = used.size ? templates.filter((tpl) => used.has(tpl.id)) : deptTemplates;
+  const legendTemplates = used.size || codes.size ? templates.filter((tpl) => used.has(tpl.id)) : deptTemplates;
   const isMonth = from === monthBounds(monthOf(from)).from && to === monthBounds(monthOf(from)).to;
   const period = isMonth ? monthLabel(monthOf(from), locale) : `${formatDate(from)} – ${formatDate(to)}`;
 
@@ -92,11 +97,18 @@ export async function GET(request: Request) {
       name: tpl.name,
       times: tpl.segments.map((s) => `${s.start}–${s.end}`).join(" / ") + (tpl.breakMinutes ? ` (−${tpl.breakMinutes} ${labels.minuteUnit})` : ""),
       hours: `${formatHours(tpl.paidMinutes)} ${labels.hourUnit}`,
-    })),
+    })).concat(
+      [...codes.values()].map((r) => ({
+        code: r.code,
+        color: CUSTOM_COLOR,
+        name: t("schedule.customName"),
+        times: r.times + (r.breakMinutes ? ` (−${r.breakMinutes} ${labels.minuteUnit})` : ""),
+        hours: `${formatHours(r.paidMinutes)} ${labels.hourUnit}`,
+      })),
+    ),
     symbols: [
       { code: "–", text: labels.dayOff, kind: "off" as const },
       ...ABSENCE_CODES.map((c) => ({ code: c, text: labels.absence[c], kind: "absence" as const })),
-      ...(custom ? [{ code: "8", text: t("pdf.customHours"), kind: "shift" as const }] : []),
     ],
     labels: {
       employee: t("common.employee"),
