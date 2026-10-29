@@ -11,6 +11,15 @@ export const user = pgTable("user", {
   displayUsername: text("display_username"),
   role: text("role").notNull().default("employee"),
   active: boolean("active").notNull().default(true),
+  // Contact + notification settings (not used by Better Auth).
+  /** Real email for notifications and password links (`email` above is an internal placeholder). */
+  contactEmail: text("contact_email"),
+  telegramChatId: text("telegram_chat_id").unique(),
+  telegramName: text("telegram_name"),
+  /** Language for notifications. */
+  locale: text("locale").notNull().default("bg"),
+  notifyEmail: boolean("notify_email").notNull().default(true),
+  notifyTelegram: boolean("notify_telegram").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });

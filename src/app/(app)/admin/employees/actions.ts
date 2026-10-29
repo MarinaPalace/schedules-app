@@ -11,7 +11,10 @@ import { run, type ActionState } from "@/lib/action-state";
 import { AppError } from "@/lib/app-error";
 import { parseEurToCents } from "@/lib/money";
 import { assertRole, assignableRoles, PEOPLE_ADMINS, ROLES, type CurrentUser, type Role } from "@/lib/session";
-import { createLogin, setPassword } from "@/lib/users";
+import { createLogin, randomPassword } from "@/lib/users";
+import { sendPasswordLink } from "@/lib/account-links";
+import type { LinkResult } from "@/lib/link-result";
+import { errorMessage } from "@/lib/errors";
 
 const employeeFields = z.object({
   firstName: z.string().trim().min(1, "nameTooShort"),
@@ -22,6 +25,20 @@ const employeeFields = z.object({
   departmentId: z.uuid("chooseDepartment"),
 });
 const dateSchema = z.iso.date("dateRequired");
+const emailSchema = z
+  .string()
+  .trim()
+  .transform((v) => v || null)
+  .pipe(z.email("emailFormat").max(200).nullable());
+
+/** Runs an action that ends with a login link; errors become a translated message. */
+async function linkAction(fn: () => Promise<LinkResult>): Promise<LinkResult> {
+  try {
+    return { ...(await fn()), at: Date.now() };
+  } catch (e) {
+    return { error: await errorMessage(e), at: Date.now() };
+  }
+}
 
 function rateFrom(form: FormData): number {
   const cents = parseEurToCents(String(form.get("hourlyRate") ?? ""));
@@ -36,28 +53,27 @@ function roleFrom(form: FormData, me: CurrentUser): Role {
   return role;
 }
 
-export async function createEmployee(_: ActionState, form: FormData): Promise<ActionState> {
-  return run(async () => {
+export async function createEmployee(_: LinkResult, form: FormData): Promise<LinkResult> {
+  return linkAction(async () => {
     const me = await assertRole(PEOPLE_ADMINS);
     const data = employeeFields.parse(Object.fromEntries(form));
     const hourlyRateCents = rateFrom(form);
     const effectiveFrom = dateSchema.parse(form.get("effectiveFrom"));
     const username = String(form.get("username") ?? "").trim();
-    const password = String(form.get("password") ?? "");
+    const contactEmail = emailSchema.parse(form.get("email") ?? "");
     const role = roleFrom(form, me);
     const name = `${data.firstName} ${data.lastName}`;
 
-    await withActor(me.id, async (tx) => {
-      const userId = username ? await createLogin(tx, { username, password, name, role }) : null;
-      const [emp] = await tx
-        .insert(employees)
-        .values({ ...data, userId, canViewDepartment: form.get("canViewDepartment") === "on" })
-        .returning();
+    const userId = await withActor(me.id, async (tx) => {
+      const userId = username ? await createLogin(tx, { username, password: randomPassword(), name, role, contactEmail }) : null;
+      const [emp] = await tx.insert(employees).values({ ...data, userId }).returning();
       await tx.insert(employeeRates).values({ employeeId: emp.id, hourlyRateCents, effectiveFrom, createdBy: me.id });
+      return userId;
     });
     revalidatePath("/admin/employees");
     const t = await getTranslations("employees");
-    return username ? t("addedWithLogin", { name, username: username.toLowerCase() }) : t("added", { name });
+    if (!userId) return { ok: t("added", { name }) };
+    return { ok: t("addedWithLogin", { name, username: username.toLowerCase() }), ...(await sendPasswordLink(me.id, userId, "setup")) };
   });
 }
 
@@ -77,7 +93,7 @@ export async function updateEmployee(_: ActionState, form: FormData): Promise<Ac
     await withActor(me.id, async (tx) => {
       await tx
         .update(employees)
-        .set({ ...data, active, canViewDepartment: form.get("canViewDepartment") === "on" })
+        .set({ ...data, active })
         .where(eq(employees.id, id));
       // A deactivated employee can no longer log in.
       if (login) {
@@ -104,25 +120,28 @@ export async function addRate(_: ActionState, form: FormData): Promise<ActionSta
   });
 }
 
-export async function createEmployeeLogin(_: ActionState, form: FormData): Promise<ActionState> {
-  return run(async () => {
+export async function createEmployeeLogin(_: LinkResult, form: FormData): Promise<LinkResult> {
+  return linkAction(async () => {
     const me = await assertRole(PEOPLE_ADMINS);
     const employeeId = z.uuid().parse(form.get("employeeId"));
     const role = roleFrom(form, me);
-    await withActor(me.id, async (tx) => {
+    const contactEmail = emailSchema.parse(form.get("email") ?? "");
+    const userId = await withActor(me.id, async (tx) => {
       const emp = await tx.query.employees.findFirst({ where: eq(employees.id, employeeId) });
       if (!emp) throw new AppError("employeeNotFound");
       if (emp.userId) throw new AppError("employeeHasLogin");
       const userId = await createLogin(tx, {
         username: String(form.get("username") ?? ""),
-        password: String(form.get("password") ?? ""),
+        password: randomPassword(),
         name: `${emp.firstName} ${emp.lastName}`,
         role,
+        contactEmail,
       });
       await tx.update(employees).set({ userId }).where(eq(employees.id, employeeId));
+      return userId;
     });
-    revalidatePath(`/admin/employees/${employeeId}`);
-    return (await getTranslations("employees"))("loginCreated");
+    // No revalidate: the page would swap to "has a login" and hide the link/QR; the Done button reloads it.
+    return { ok: (await getTranslations("employees"))("loginCreated"), ...(await sendPasswordLink(me.id, userId, "setup")) };
   });
 }
 
@@ -147,16 +166,34 @@ export async function linkExistingLogin(_: ActionState, form: FormData): Promise
   });
 }
 
-export async function resetPassword(_: ActionState, form: FormData): Promise<ActionState> {
+/** Only for people whose role this user could also hand out. */
+async function manageableLogin(me: CurrentUser, userId: string) {
+  const target = await db.query.user.findFirst({ where: eq(user.id, userId) });
+  if (!target) throw new AppError("userNotFound");
+  if (!assignableRoles(me).includes(target.role as Role)) throw new AppError("adminOnlyReset");
+  return target;
+}
+
+/** Sends the person a link to choose a new password (and shows it, to hand over in person). */
+export async function resetPassword(_: LinkResult, form: FormData): Promise<LinkResult> {
+  return linkAction(async () => {
+    const me = await assertRole(PEOPLE_ADMINS);
+    const target = await manageableLogin(me, z.string().min(1).parse(form.get("userId")));
+    if (!target.active) throw new AppError("userInactive");
+    const res = await sendPasswordLink(me.id, target.id, "reset");
+    revalidatePath("/admin/users");
+    return { ok: (await getTranslations("employees"))("resetLinkReady", { username: target.username ?? "" }), ...res };
+  });
+}
+
+/** Email address used for notifications and password links. */
+export async function updateLoginContact(_: ActionState, form: FormData): Promise<ActionState> {
   return run(async () => {
     const me = await assertRole(PEOPLE_ADMINS);
-    const userId = z.string().min(1).parse(form.get("userId"));
-    const target = await db.query.user.findFirst({ where: eq(user.id, userId) });
-    if (!target) throw new AppError("userNotFound");
-    // Only for people whose role this user could also hand out.
-    if (!assignableRoles(me).includes(target.role as Role)) throw new AppError("adminOnlyReset");
-    await withActor(me.id, (tx) => setPassword(tx, userId, String(form.get("password") ?? "")));
+    const target = await manageableLogin(me, z.string().min(1).parse(form.get("userId")));
+    const contactEmail = emailSchema.parse(form.get("email") ?? "");
+    await withActor(me.id, (tx) => tx.update(user).set({ contactEmail, updatedAt: new Date() }).where(eq(user.id, target.id)));
+    revalidatePath("/admin/employees");
     revalidatePath("/admin/users");
-    return (await getTranslations("employees"))("passwordChanged", { username: target.username ?? "" });
   });
 }

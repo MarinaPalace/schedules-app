@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-export type NavItem = { href: string; label: string; section?: string };
+export type NavItem = { href: string; label: string; section?: string; badge?: number };
 
 export function Nav({ items }: { items: NavItem[] }) {
   const pathname = usePathname();
@@ -26,10 +26,20 @@ export function Nav({ items }: { items: NavItem[] }) {
               }`}
             >
               {item.label}
+              {item.badge ? <Count n={item.badge} className="ml-2" /> : null}
             </Link>
           </div>
         );
       })}
     </nav>
+  );
+}
+
+/** Red counter for things waiting for the user. */
+export function Count({ n, className = "" }: { n: number; className?: string }) {
+  return (
+    <span className={`inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1.5 text-[11px] leading-none font-semibold text-white ${className}`}>
+      {n > 99 ? "99+" : n}
+    </span>
   );
 }

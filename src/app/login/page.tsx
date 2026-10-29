@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { authClient } from "@/lib/auth-client";
@@ -52,6 +53,9 @@ export default function LoginPage() {
         <button className="btn btn-primary w-full" disabled={pending}>
           {pending ? t("login.signingIn") : t("login.signIn")}
         </button>
+        <Link href="/forgot" className="block text-center text-sm text-blue-700 hover:underline">
+          {t("login.forgot")}
+        </Link>
       </form>
     </main>
   );

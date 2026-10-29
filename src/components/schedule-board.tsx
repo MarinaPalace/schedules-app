@@ -3,18 +3,19 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
-import { copyPreviousWeek, publishSchedule, saveCells, type Tool } from "@/app/(app)/schedule/actions";
-import { EMPTY_CELL, viewOfTool, type CellView, type TemplateLite, type ToolLite } from "@/lib/cell-view";
+import { copyPreviousWeek, createDepartmentLegend, publishSchedule, saveCells, type Tool } from "@/app/(app)/schedule/actions";
+import { cellLabel, customCodes, CUSTOM_COLOR, EMPTY_CELL, viewOfTool, type CellView, type CustomLegendRow, type TemplateLite, type ToolLite } from "@/lib/cell-view";
 import { ABSENCE_CODES } from "@/lib/codes";
 import { addDays, dayLabel, daysBetween, isWeekend, mondayOf, weekdayShort } from "@/lib/calendar";
 import { costCents, rateAt, type RateBookJSON } from "@/lib/rates";
-import { formatHours } from "@/lib/shifts";
+import { formatHours, formatSegments } from "@/lib/shifts";
 import { formatEur } from "@/lib/money";
 import { useDayLabels } from "@/lib/use-day-labels";
 import { ShiftPicker } from "@/components/shift-picker";
+import { TimelineView } from "@/components/timeline-view";
 import { setPreferenceCookie } from "@/lib/client-cookie";
 
-export type BoardMode = "day" | "person" | "table";
+export type BoardMode = "day" | "person" | "table" | "timeline";
 
 type Props = {
   departmentId: string;
@@ -38,6 +39,8 @@ type Props = {
   showCost?: boolean;
   /** Cells whose current plan employees cannot see yet. */
   unpublished?: Record<string, true>;
+  /** Link to the PDF of the shown period. */
+  pdfHref?: string;
 };
 
 type Change = { employeeId: string; date: string; prev: ToolLite };
@@ -45,11 +48,16 @@ const k = (employeeId: string, date: string) => `${employeeId}|${date}`;
 const sameCell = (a: CellView, b: CellView) => a.kind === b.kind && a.label === b.label && a.paidMinutes === b.paidMinutes;
 
 export function ScheduleBoard(props: Props) {
-  const { departmentId, dates, employees, templates, allTemplates, rates, factor, editable, today, budget, weekStart, showCost = true } = props;
+  const { departmentId, dates, employees, rates, factor, editable, today, budget, weekStart, showCost = true } = props;
   const t = useTranslations();
   const locale = useLocale();
   const labels = useDayLabels();
   const router = useRouter();
+
+  // Legends saved from this screen are added locally, so they can be used right away.
+  const [added, setAdded] = useState<TemplateLite[]>([]);
+  const templates = [...props.templates, ...added.filter((a) => !props.templates.some((x) => x.id === a.id))];
+  const allTemplates = [...props.allTemplates, ...added.filter((a) => !props.allTemplates.some((x) => x.id === a.id))];
 
   // Local copy of the plan; reset whenever the server sends fresh data.
   const [base, setBase] = useState(props.initialCells);
@@ -82,6 +90,7 @@ export function ScheduleBoard(props: Props) {
 
   const [tool, setTool] = useState<Tool | null>(null);
   const [customText, setCustomText] = useState("08:00-16:00");
+  const [customBreak, setCustomBreak] = useState("0");
   const [status, setStatus] = useState<{ saving: number; error: string | null }>({ saving: 0, error: null });
   const [copying, startCopy] = useTransition();
   const [publishing, startPublish] = useTransition();
@@ -105,14 +114,14 @@ export function ScheduleBoard(props: Props) {
   }
 
   /** Applies values locally, queues them for saving and returns what is needed to undo them. */
-  function applyMany(changes: { employeeId: string; date: string; tool: ToolLite }[]): Change[] {
+  function applyMany(changes: { employeeId: string; date: string; tool: ToolLite }[], known: TemplateLite[] = allTemplates): Change[] {
     if (!editable) return [];
     const next = { ...cellsRef.current };
     const undo: Change[] = [];
     const touched: string[] = [];
     let delta = 0;
     for (const ch of changes) {
-      const view = viewOfTool(ch.tool, allTemplates, labels);
+      const view = viewOfTool(ch.tool, known, labels);
       if (!view) {
         setStatus((s) => ({ ...s, error: t("schedule.customFormat") }));
         continue;
@@ -162,7 +171,7 @@ export function ScheduleBoard(props: Props) {
 
   function paint(employeeId: string, date: string) {
     if (!tool) return;
-    const effective: ToolLite = tool.type === "custom" ? { type: "custom", text: customText } : tool;
+    const effective: ToolLite = tool.type === "custom" ? { type: "custom", text: customText, breakMinutes: Math.max(0, Math.floor(Number(customBreak) || 0)) } : tool;
     dragBatch.current.push(...applyMany([{ employeeId, date, tool: effective }]));
   }
 
@@ -175,6 +184,21 @@ export function ScheduleBoard(props: Props) {
     const i = dates.indexOf(s.date) + step;
     return dates[i] ? { employeeId: s.employeeId, date: dates[i] } : null;
   };
+  /** Saves custom hours as a department legend, then puts it in the open cell. */
+  async function saveLegend(legend: { text: string; breakMinutes: number; code: string; name: string; color: string }): Promise<string | null> {
+    const target = sheet;
+    const res = await createDepartmentLegend(departmentId, legend);
+    if (!res.template) return res.error ?? "error";
+    const tpl = res.template;
+    setAdded((a) => [...a, tpl]);
+    if (target) {
+      record(applyMany([{ ...target, tool: { type: "template", templateId: tpl.id } }], [...allTemplates, tpl]));
+      // Move on only if the picker is still open on that cell (it may have been closed while saving).
+      setSheet((open) => (open && open.employeeId === target.employeeId && open.date === target.date ? order(target, 1) : open));
+    }
+    return null;
+  }
+
   function pick(toolPicked: ToolLite) {
     if (!sheet) return;
     record(applyMany([{ ...sheet, tool: toolPicked }]));
@@ -205,6 +229,32 @@ export function ScheduleBoard(props: Props) {
       },
       { minutes: 0, cents: 0 },
     );
+  // Hours entered without a legend get automatic codes (P1, P2…) and a line in the legend.
+  const shown = dates.flatMap((d) => employees.map((e) => cells[k(e.id, d)])).filter((c): c is CellView => !!c);
+  const codes = customCodes(shown, t("schedule.customPrefix"));
+  const label = (c: CellView) => cellLabel(c, codes);
+  const dayStrip = (
+          <div className="-mx-4 flex snap-x gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:px-0">
+            {dates.map((d) => {
+              const working = employees.filter((e) => cells[k(e.id, d)]?.kind === "shift").length;
+              const active = d === day;
+              return (
+                <button
+                  key={d}
+                  type="button"
+                  onClick={() => setPickedDay(d)}
+                  className={`flex min-w-14 shrink-0 snap-start flex-col items-center rounded-xl border px-2 py-2 ${
+                    active ? "border-blue-600 bg-blue-600 text-white" : d === today ? "border-blue-300 bg-blue-50" : isWeekend(d) ? "border-gray-200 bg-gray-50" : "border-gray-200 bg-surface"
+                  }`}
+                >
+                  <span className="text-xs uppercase opacity-80">{weekdayShort(d, locale)}</span>
+                  <span className="text-lg leading-tight font-bold">{d.slice(8, 10)}</span>
+                  <span className={`text-[11px] ${active ? "opacity-90" : "text-gray-500"}`}>👤 {working}</span>
+                </button>
+              );
+            })}
+          </div>
+  );
   const unpublishedCount = Object.keys(unpub).filter((key) => dates.includes(key.split("|")[1])).length;
   const projected = budget ? budget.projectedCents + budgetDelta : 0;
   const over = budget?.budgetCents ? projected > budget.budgetCents : false;
@@ -233,15 +283,15 @@ export function ScheduleBoard(props: Props) {
       )}
 
       <div className="flex flex-wrap items-center gap-2">
-        <div className="grid w-full grid-cols-3 overflow-hidden rounded-xl border border-gray-300 bg-surface text-sm font-medium sm:inline-flex sm:w-auto" role="tablist">
-          {(["day", "person", "table"] as const).map((m) => (
+        <div className="grid w-full grid-cols-4 overflow-hidden rounded-xl border border-gray-300 bg-surface text-sm font-medium sm:inline-flex sm:w-auto" role="tablist">
+          {(["day", "person", "table", "timeline"] as const).map((m) => (
             <button
               key={m}
               type="button"
               role="tab"
               aria-selected={mode === m}
               onClick={() => setMode(m)}
-              className={`min-h-11 px-4 ${mode === m ? "bg-blue-600 text-white" : "text-gray-700"}`}
+              className={`min-h-11 px-2 sm:px-4 ${mode === m ? "bg-blue-600 text-white" : "text-gray-700"}`}
             >
               {t(`schedule.mode.${m}`)}
             </button>
@@ -264,6 +314,11 @@ export function ScheduleBoard(props: Props) {
             ⧉ {copying ? t("schedule.copying") : t("schedule.copyWeek")}
           </button>
         )}
+        {props.pdfHref && (
+          <a href={props.pdfHref} target="_blank" rel="noopener" className="btn" title={t("schedule.pdfHint")}>
+            ⬇ PDF
+          </a>
+        )}
       </div>
 
       {employees.length === 0 && <p className="card text-center text-sm text-gray-500">{t("schedule.noEmployees")}</p>}
@@ -271,28 +326,9 @@ export function ScheduleBoard(props: Props) {
       {/* ---------------- DAY ---------------- */}
       {mode === "day" && employees.length > 0 && (
         <div className="space-y-3">
-          <div className="-mx-4 flex snap-x gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:px-0">
-            {dates.map((d) => {
-              const working = employees.filter((e) => cells[k(e.id, d)]?.kind === "shift").length;
-              const active = d === day;
-              return (
-                <button
-                  key={d}
-                  type="button"
-                  onClick={() => setPickedDay(d)}
-                  className={`flex min-w-14 shrink-0 snap-start flex-col items-center rounded-xl border px-2 py-2 ${
-                    active ? "border-blue-600 bg-blue-600 text-white" : d === today ? "border-blue-300 bg-blue-50" : isWeekend(d) ? "border-gray-200 bg-gray-50" : "border-gray-200 bg-surface"
-                  }`}
-                >
-                  <span className="text-xs uppercase opacity-80">{weekdayShort(d, locale)}</span>
-                  <span className="text-lg leading-tight font-bold">{d.slice(8, 10)}</span>
-                  <span className={`text-[11px] ${active ? "opacity-90" : "text-gray-500"}`}>👤 {working}</span>
-                </button>
-              );
-            })}
-          </div>
+          {dayStrip}
 
-          <Coverage cells={cells} employees={employees} date={day} />
+          <Coverage cells={cells} employees={employees} date={day} label={label} />
 
           <ul className="card divide-y divide-gray-100 p-0 sm:p-0">
             {employees.map((e) => {
@@ -311,13 +347,27 @@ export function ScheduleBoard(props: Props) {
                     </span>
                     {unpub[k(e.id, day)] && editable && <span className="h-2 w-2 rounded-full bg-amber-500" title={t("schedule.notPublished")} />}
                     {props.approved[k(e.id, day)] && <span className="text-xs text-green-600">✓</span>}
-                    <Chip c={c} big />
+                    <Chip c={c} label={label(c)} big />
                   </button>
                 </li>
               );
             })}
           </ul>
         </div>
+      )}
+
+      {/* ---------------- TIMELINE ---------------- */}
+      {mode === "timeline" && employees.length > 0 && (
+        <TimelineView
+          dates={dates}
+          employees={employees}
+          cells={cells}
+          day={day}
+          onDay={setPickedDay}
+          strip={dayStrip}
+          label={label}
+          onOpen={editable ? (employeeId, date) => setSheet({ employeeId, date }) : undefined}
+        />
       )}
 
       {/* ---------------- PERSON ---------------- */}
@@ -391,7 +441,7 @@ export function ScheduleBoard(props: Props) {
                           <span className="min-w-0 flex-1 truncate text-sm text-gray-600">{c.title}</span>
                           {unpub[k(person, d)] && editable && <span className="h-2 w-2 rounded-full bg-amber-500" title={t("schedule.notPublished")} />}
                           {props.approved[k(person, d)] && <span className="text-xs text-green-600">✓</span>}
-                          <Chip c={c} big />
+                          <Chip c={c} label={label(c)} big />
                         </button>
                       </li>
                     );
@@ -436,7 +486,13 @@ export function ScheduleBoard(props: Props) {
                   {t("schedule.custom")}
                 </ToolButton>
                 {tool?.type === "custom" && (
-                  <input value={customText} onChange={(e) => setCustomText(e.target.value)} className="input w-48 py-1 font-mono text-xs" />
+                  <>
+                    <input value={customText} onChange={(e) => setCustomText(e.target.value)} className="input w-48 py-1 font-mono text-xs" aria-label={t("schedule.customHours")} />
+                    <label className="flex items-center gap-1 text-xs text-gray-600">
+                      {t("schedule.breakMin")}
+                      <input type="number" min={0} max={240} step={5} value={customBreak} onChange={(e) => setCustomBreak(e.target.value)} className="input w-16 py-1 text-xs" />
+                    </label>
+                  </>
                 )}
                 <ToolButton active={tool?.type === "none"} onClick={() => setTool(tool?.type === "none" ? null : { type: "none" })}>
                   {t("schedule.clear")}
@@ -498,7 +554,7 @@ export function ScheduleBoard(props: Props) {
                             }}
                             onPointerEnter={() => painting.current && paint(e.id, d)}
                           >
-                            <Chip c={c} />
+                            <Chip c={c} label={label(c)} />
                             {props.approved[key] && <span className="absolute top-0 right-0.5 text-[9px] text-green-600">✓</span>}
                             {editable && unpub[key] && <span className="absolute top-0.5 left-0.5 h-1.5 w-1.5 rounded-full bg-amber-500" />}
                           </td>
@@ -536,6 +592,8 @@ export function ScheduleBoard(props: Props) {
           {showCost && <p className="text-xs text-gray-500">{t("schedule.footnote", { factor })}</p>}
         </div>
       )}
+
+      <Legend cells={shown} templates={allTemplates} codes={codes} />
 
       {/* ---------------- ACTION BAR ---------------- */}
       {editable && (
@@ -591,6 +649,7 @@ export function ScheduleBoard(props: Props) {
           labels={labels}
           historyHref={showCost ? `/schedule/history?employee=${sheet.employeeId}&date=${sheet.date}` : undefined}
           onPick={pick}
+          onSaveLegend={editable ? saveLegend : undefined}
           onPrev={order(sheet, -1) ? () => setSheet(order(sheet, -1)) : undefined}
           onNext={order(sheet, 1) ? () => setSheet(order(sheet, 1)) : undefined}
           onClose={() => setSheet(null)}
@@ -600,7 +659,7 @@ export function ScheduleBoard(props: Props) {
   );
 }
 
-function Chip({ c, big }: { c: CellView; big?: boolean }) {
+function Chip({ c, big, label }: { c: CellView; big?: boolean; label: string }) {
   return (
     <span
       className={`inline-flex items-center justify-center rounded-lg font-semibold ${big ? "h-12 min-w-14 px-2 text-base" : "h-7 w-full min-w-10 text-xs"} ${
@@ -614,13 +673,13 @@ function Chip({ c, big }: { c: CellView; big?: boolean }) {
       }`}
       style={c.kind === "shift" ? { background: c.color ?? "#64748b" } : undefined}
     >
-      {c.kind === "none" ? (big ? "+" : "") : c.label}
+      {c.kind === "none" ? (big ? "+" : "") : label}
     </span>
   );
 }
 
 /** How many people work each legend on the day, plus off/absent. */
-function Coverage({ cells, employees, date }: { cells: Record<string, CellView>; employees: { id: string }[]; date: string }) {
+function Coverage({ cells, employees, date, label }: { cells: Record<string, CellView>; employees: { id: string }[]; date: string; label: (c: CellView) => string }) {
   const t = useTranslations();
   const groups = new Map<string, { label: string; color: string | null; n: number }>();
   let off = 0;
@@ -629,9 +688,10 @@ function Coverage({ cells, employees, date }: { cells: Record<string, CellView>;
   for (const e of employees) {
     const c = cells[k(e.id, date)] ?? EMPTY_CELL;
     if (c.kind === "shift") {
-      const g = groups.get(c.label) ?? { label: c.label, color: c.color, n: 0 };
+      const l = label(c);
+      const g = groups.get(l) ?? { label: l, color: c.color, n: 0 };
       g.n++;
-      groups.set(c.label, g);
+      groups.set(l, g);
     } else if (c.kind === "off") off++;
     else if (c.kind === "absence") absent++;
     else empty++;
@@ -660,5 +720,35 @@ function ToolButton({ active, onClick, children, style }: { active: boolean; onC
     >
       {children}
     </button>
+  );
+}
+
+/** Shifts used in the shown period – legends and automatic codes for custom hours – with their times. */
+function Legend({ cells, templates, codes }: { cells: CellView[]; templates: TemplateLite[]; codes: Map<string, CustomLegendRow> }) {
+  const t = useTranslations();
+  const labels = useDayLabels();
+  const used = templates.filter((tpl) => cells.some((c) => c.tool.type === "template" && c.tool.templateId === tpl.id));
+  if (!used.length && !codes.size) return null;
+  const brk = (m?: number) => (m ? ` (−${m} ${labels.minuteUnit})` : "");
+  const row = (key: string, code: string, color: string, times: string, breakMinutes: number | undefined, paid: number, name: string) => (
+    <li key={key} className="flex items-center gap-2">
+      <span className="inline-flex h-6 min-w-9 items-center justify-center rounded px-1.5 text-xs font-semibold text-white" style={{ background: color }}>
+        {code}
+      </span>
+      <span className="tabular-nums">
+        {times}
+        {brk(breakMinutes)} · {formatHours(paid)} {labels.hourUnit}
+      </span>
+      <span className="truncate text-gray-500">{name}</span>
+    </li>
+  );
+  return (
+    <div className="card space-y-1.5 py-3">
+      <div className="text-xs font-semibold tracking-wide text-gray-500 uppercase">{t("schedule.legend")}</div>
+      <ul className="grid gap-x-6 gap-y-1.5 text-sm sm:grid-cols-2 lg:grid-cols-3">
+        {used.map((tpl) => row(tpl.id, tpl.code, tpl.color, formatSegments(tpl.segments), tpl.breakMinutes, tpl.paidMinutes, tpl.name))}
+        {[...codes.values()].map((r) => row(r.key, r.code, CUSTOM_COLOR, r.times, r.breakMinutes, r.paidMinutes, t("schedule.customName")))}
+      </ul>
+    </div>
   );
 }

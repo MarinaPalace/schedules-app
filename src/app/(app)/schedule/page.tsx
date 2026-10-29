@@ -61,6 +61,7 @@ export default async function SchedulePage({ searchParams }: PageProps<"/schedul
   // Plan changes made after the last publication of that day (employees don't see them yet).
   const unpublished: Record<string, true> = {};
   for (const [k, e] of schedule) {
+    if (e.swapRequestId) continue; // approved swaps are visible to employees right away
     const c = cutoff(e.departmentId, e.workDate);
     if (c ? e.createdAt > c : e.kind !== "none") unpublished[k] = true;
   }
@@ -70,8 +71,8 @@ export default async function SchedulePage({ searchParams }: PageProps<"/schedul
   // Remembered choice, otherwise "day" on phones and "table" on bigger screens.
   const savedMode = (await cookies()).get("scheduleMode")?.value;
   const isPhone = /Mobi|Android|iPhone/i.test((await headers()).get("user-agent") ?? "");
-  const defaultMode: BoardMode = sp.person ? "person" : savedMode === "day" || savedMode === "person" || savedMode === "table" ? savedMode : isPhone ? "day" : "table";
-  const lite = ({ id, code, name, color, segments, paidMinutes }: (typeof allTemplates)[number]) => ({ id, code, name, color, segments, paidMinutes });
+  const defaultMode: BoardMode = sp.person ? "person" : savedMode === "day" || savedMode === "person" || savedMode === "table" || savedMode === "timeline" ? savedMode : isPhone ? "day" : "table";
+  const lite = ({ id, code, name, color, segments, paidMinutes, breakMinutes }: (typeof allTemplates)[number]) => ({ id, code, name, color, segments, paidMinutes, breakMinutes });
 
   return (
     <div className="space-y-4">
@@ -99,6 +100,7 @@ export default async function SchedulePage({ searchParams }: PageProps<"/schedul
         unpublished={unpublished}
         defaultMode={defaultMode}
         initialPerson={sp.person ?? null}
+        pdfHref={href("/schedule/pdf", { dept: dept.id, from, to })}
       />
       {!editable && <p className="text-sm text-gray-500">{t("common.readOnly")}</p>}
     </div>

@@ -26,5 +26,6 @@ export type DayValue = {
 export type DayLabels = {
   dayOff: string;
   hourUnit: string;
+  minuteUnit: string;
   absence: Record<string, string>;
 };

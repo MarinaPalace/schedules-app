@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import type { CellView, TemplateLite, ToolLite } from "@/lib/cell-view";
 import { ABSENCE_CODES, type DayLabels } from "@/lib/codes";
-import { formatHours, formatSegments, parseSegments } from "@/lib/shifts";
+import { formatHours, formatSegments, paidMinutes, parseSegments } from "@/lib/shifts";
 
 type Props = {
   title: string;
@@ -15,6 +15,8 @@ type Props = {
   labels: DayLabels;
   historyHref?: string;
   onPick: (tool: ToolLite) => void;
+  /** Saves the custom hours as a new legend and applies it; resolves to an error message or null. */
+  onSaveLegend?: (legend: { text: string; breakMinutes: number; code: string; name: string; color: string }) => Promise<string | null>;
   onPrev?: () => void;
   onNext?: () => void;
   onClose: () => void;
@@ -24,10 +26,25 @@ type Props = {
  * Big-button shift chooser. Bottom sheet on phones, dialog on larger screens.
  * Picking a value saves it; the parent then moves on to the next person/day.
  */
-export function ShiftPicker({ title, subtitle, current, templates, labels, historyHref, onPick, onPrev, onNext, onClose }: Props) {
+export function ShiftPicker({ title, subtitle, current, templates, labels, historyHref, onPick, onSaveLegend, onPrev, onNext, onClose }: Props) {
   const t = useTranslations();
   const [custom, setCustom] = useState(current.tool.type === "custom" ? current.tool.text : "");
-  const customOk = custom.trim() !== "" && parseSegments(custom) !== null;
+  const [breakMin, setBreakMin] = useState(current.tool.type === "custom" ? String(current.tool.breakMinutes ?? 0) : "0");
+  const [asLegend, setAsLegend] = useState(false);
+  const [legend, setLegend] = useState({ code: "", name: "", color: "#0d9488" });
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const segments = custom.trim() ? parseSegments(custom) : null;
+  const breakMinutes = Math.max(0, Math.floor(Number(breakMin) || 0));
+  const customPaid = segments ? paidMinutes(segments, breakMinutes) : 0;
+  const customOk = !!segments && customPaid > 0 && (!asLegend || (legend.code.trim() !== "" && legend.name.trim() !== ""));
+
+  async function applyCustom() {
+    if (!asLegend || !onSaveLegend) return onPick({ type: "custom", text: custom, breakMinutes });
+    setSaving(true);
+    setSaveError(await onSaveLegend({ text: custom, breakMinutes, ...legend }));
+    setSaving(false);
+  }
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -96,23 +113,85 @@ export function ShiftPicker({ title, subtitle, current, templates, labels, histo
             </PlainButton>
           </div>
 
-          <div>
-            <label className="label" htmlFor="custom-hours">
-              {t("schedule.customHours")}
-            </label>
-            <div className="flex gap-2">
-              <input
-                id="custom-hours"
-                value={custom}
-                onChange={(e) => setCustom(e.target.value)}
-                className="input font-mono"
-                placeholder="08:00-12:00 / 17:00-21:00"
-                inputMode="text"
-              />
-              <button type="button" className="btn btn-primary shrink-0" disabled={!customOk} onClick={() => onPick({ type: "custom", text: custom })}>
-                {t("schedule.apply")}
-              </button>
+          <div className="space-y-3 rounded-xl border border-gray-200 p-3">
+            <div className="grid grid-cols-[1fr_6rem] gap-2">
+              <div>
+                <label className="label" htmlFor="custom-hours">
+                  {t("schedule.customHours")}
+                </label>
+                <input
+                  id="custom-hours"
+                  value={custom}
+                  onChange={(e) => setCustom(e.target.value)}
+                  className="input font-mono"
+                  placeholder="08:00-12:00 / 17:00-21:00"
+                  inputMode="text"
+                />
+              </div>
+              <div>
+                <label className="label" htmlFor="custom-break">
+                  {t("schedule.breakMin")}
+                </label>
+                <input id="custom-break" type="number" min={0} max={240} step={5} value={breakMin} onChange={(e) => setBreakMin(e.target.value)} className="input" />
+              </div>
             </div>
+            {segments && (
+              <p className={`text-sm ${customPaid > 0 ? "text-gray-600" : "text-red-600"}`}>
+                {customPaid > 0 ? t("schedule.customPaid", { hours: formatHours(customPaid) }) : t("errors.breakTooLong")}
+              </p>
+            )}
+            {onSaveLegend && (
+              <label className="flex min-h-11 items-center gap-3 text-sm">
+                <input type="checkbox" className="h-5 w-5" checked={asLegend} onChange={(e) => setAsLegend(e.target.checked)} />
+                {t("schedule.saveAsLegend")}
+              </label>
+            )}
+            {asLegend && (
+              <div className="grid grid-cols-[5rem_1fr_3.5rem] gap-2">
+                <div>
+                  <label className="label" htmlFor="legend-code">
+                    {t("shifts.code")}
+                  </label>
+                  <input
+                    id="legend-code"
+                    value={legend.code}
+                    maxLength={6}
+                    onChange={(e) => setLegend((l) => ({ ...l, code: e.target.value.toUpperCase() }))}
+                    className="input uppercase"
+                    placeholder="R2"
+                  />
+                </div>
+                <div>
+                  <label className="label" htmlFor="legend-name">
+                    {t("common.name")}
+                  </label>
+                  <input
+                    id="legend-name"
+                    value={legend.name}
+                    onChange={(e) => setLegend((l) => ({ ...l, name: e.target.value }))}
+                    className="input"
+                    placeholder={t("schedule.legendNamePlaceholder")}
+                  />
+                </div>
+                <div>
+                  <label className="label" htmlFor="legend-color">
+                    {t("shifts.colour")}
+                  </label>
+                  <input
+                    id="legend-color"
+                    type="color"
+                    value={legend.color}
+                    onChange={(e) => setLegend((l) => ({ ...l, color: e.target.value }))}
+                    className="h-11 w-full rounded-lg border border-gray-300"
+                  />
+                </div>
+              </div>
+            )}
+            <button type="button" className="btn btn-primary w-full" disabled={!customOk || saving} onClick={applyCustom}>
+              {saving ? "…" : asLegend ? t("schedule.saveLegendApply") : t("schedule.apply")}
+            </button>
+            {saveError && <p className="text-sm text-red-600">{saveError}</p>}
+            <p className="text-xs text-gray-500">{t(onSaveLegend ? "schedule.customHelp" : "schedule.customHelpNoSave")}</p>
           </div>
         </div>
 

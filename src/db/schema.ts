@@ -57,6 +57,7 @@ export const employees = pgTable("employees", {
   departmentId: uuid("department_id")
     .notNull()
     .references(() => departments.id),
+  /** Unused since every employee may see their department's published schedule (kept: columns are never dropped). */
   canViewDepartment: boolean("can_view_department").notNull().default(false),
   active: boolean("active").notNull().default(true),
   createdAt: createdAt(),
@@ -113,10 +114,57 @@ export const scheduleEntries = pgTable(
       .notNull()
       .references(() => departments.id),
     note: text("note"),
+    /** Set when this row came from an approved shift swap; such rows are visible to employees without publishing. */
+    swapRequestId: uuid("swap_request_id"),
     createdBy: createdBy(),
     createdAt: createdAt(),
   },
   (t) => [index("schedule_entries_lookup_idx").on(t.employeeId, t.workDate, t.createdAt)],
+);
+
+/**
+ * Append-only. Two employees of one department exchange their planned days:
+ * on `date1` (and `date2`, if set) each gets the other's published plan.
+ * `snapshot` holds the schedule_entries id (or null) per "employeeId|date" as published when requested.
+ */
+export const swapRequests = pgTable(
+  "swap_requests",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    departmentId: uuid("department_id")
+      .notNull()
+      .references(() => departments.id),
+    requesterId: uuid("requester_id")
+      .notNull()
+      .references(() => employees.id),
+    colleagueId: uuid("colleague_id")
+      .notNull()
+      .references(() => employees.id),
+    date1: date("date1").notNull(),
+    date2: date("date2"),
+    snapshot: jsonb("snapshot").$type<Record<string, string | null>>().notNull(),
+    note: text("note"),
+    createdBy: createdBy(),
+    createdAt: createdAt(),
+  },
+  (t) => [index("swap_requests_dept_idx").on(t.departmentId, t.createdAt)],
+);
+
+/** Append-only. The latest event of a swap request is its state: accepted → waiting for the manager. */
+export const swapEvents = pgTable(
+  "swap_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    requestId: uuid("request_id")
+      .notNull()
+      .references(() => swapRequests.id),
+    /** accepted | declined | cancelled | approved | rejected */
+    action: text("action").notNull(),
+    note: text("note"),
+    createdBy: createdBy(),
+    createdAt: createdAt(),
+  },
+  (t) => [index("swap_events_request_idx").on(t.requestId, t.createdAt)],
 );
 
 /** Append-only. Employees see a day as it was at the latest publication covering it. */
@@ -231,6 +279,59 @@ export const advanceDecisions = pgTable("advance_decisions", {
   createdBy: createdBy(),
   createdAt: createdAt(),
 });
+
+/** Append-only. Accounting marks an approved advance as handed out. */
+export const advancePayments = pgTable("advance_payments", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  requestId: uuid("request_id")
+    .notNull()
+    .unique()
+    .references(() => advanceRequests.id),
+  note: text("note"),
+  createdBy: createdBy(),
+  createdAt: createdAt(),
+});
+
+/**
+ * One-time links: `setup` (first password), `reset` (forgotten password), `telegram` (connect a chat).
+ * Only a SHA-256 hash of the token is stored.
+ */
+export const loginTokens = pgTable(
+  "login_tokens",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id),
+    purpose: text("purpose").notNull(),
+    tokenHash: text("token_hash").notNull().unique(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    usedAt: timestamp("used_at", { withTimezone: true }),
+    createdBy: createdBy(),
+    createdAt: createdAt(),
+  },
+  (t) => [index("login_tokens_user_idx").on(t.userId, t.purpose, t.createdAt)],
+);
+
+/** Delivery log of email/Telegram messages. Links with tokens are redacted before storing. */
+export const notifications = pgTable(
+  "notifications",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id").references(() => user.id),
+    /** email | telegram */
+    channel: text("channel").notNull(),
+    recipient: text("recipient").notNull(),
+    kind: text("kind").notNull(),
+    subject: text("subject").notNull(),
+    body: text("body").notNull(),
+    /** sent | failed | not_configured */
+    status: text("status").notNull(),
+    error: text("error"),
+    createdAt: createdAt(),
+  },
+  (t) => [index("notifications_created_idx").on(t.createdAt)],
+);
 
 export const settings = pgTable("settings", {
   key: text("key").primaryKey(),

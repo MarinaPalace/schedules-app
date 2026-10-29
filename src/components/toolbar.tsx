@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { getTranslations } from "next-intl/server";
+import { href } from "@/lib/href";
 
 type Option = { value: string; label: string };
 
@@ -48,9 +49,4 @@ export async function PeriodNav({ label, prev, next, today }: { label: string; p
   );
 }
 
-export function href(base: string, params: Record<string, string | undefined | null>): string {
-  const q = new URLSearchParams();
-  for (const [k, v] of Object.entries(params)) if (v) q.set(k, v);
-  const s = q.toString();
-  return s ? `${base}?${s}` : base;
-}
+export { href } from "@/lib/href";

@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { addMonths, isMonth, monthLabel, monthOf } from "@/lib/calendar";
+import { addDays, addMonths, isMonth, mondayOf, monthLabel, monthOf } from "@/lib/calendar";
+import { loadUnpublished } from "@/lib/published";
 import { budgetStatus, computeMonth, type BudgetStatus } from "@/lib/costs";
 import { todayISO } from "@/lib/dates";
 import { formatEur } from "@/lib/money";
@@ -31,7 +32,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
   const deps = await getVisibleDepartments(user);
   if (!deps.length) return <p className="text-sm text-gray-500">{t("common.noDepartments")}</p>;
 
-  const costs = await computeMonth(deps.map((d) => d.id), month);
+  const [costs, unpublished] = await Promise.all([computeMonth(deps.map((d) => d.id), month), loadUnpublished(deps.map((d) => d.id), today, addDays(today, 62))]);
   const months = deps.map((d) => costs.get(d.id)!);
   const total = months.reduce(
     (t, m) => ({
@@ -93,6 +94,20 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
           )}
         </div>
       </div>
+
+      {deps
+        .filter((d) => unpublished.get(d.id))
+        .map((d) => {
+          const u = unpublished.get(d.id)!;
+          return (
+            <div key={d.id} className="card flex flex-wrap items-center gap-x-3 gap-y-2 border-amber-200 bg-amber-50 py-3 text-sm text-amber-800">
+              <span className="flex-1">{t("dashboard.unpublishedWarning", { name: d.name, count: u.count })}</span>
+              <Link className="btn btn-sm" href={href("/schedule", { dept: d.id, view: "week", start: mondayOf(u.firstDate) })}>
+                {t("dashboard.openSchedule")}
+              </Link>
+            </div>
+          );
+        })}
 
       {total.unapprovedDays > 0 && (
         <div className="card border-amber-200 bg-amber-50 py-3 text-sm text-amber-800">

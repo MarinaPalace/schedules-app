@@ -5,13 +5,14 @@ import { getTranslations } from "next-intl/server";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db/client";
-import { advanceDecisions, advanceRequests, employees } from "@/db/schema";
+import { advanceDecisions, advancePayments, advanceRequests, employees } from "@/db/schema";
 import { withActor } from "@/lib/actor";
 import { run, type ActionState } from "@/lib/action-state";
 import { AppError } from "@/lib/app-error";
 import { errorMessage } from "@/lib/errors";
 import { parseEurToCents } from "@/lib/money";
-import { canManageDepartment, getCurrentUser, getEmployeeForUser } from "@/lib/session";
+import { notifyAdvanceOutcome, notifyAdvanceRequested } from "@/lib/notify/events";
+import { canManageDepartment, getCurrentUser, getEmployeeForUser, type CurrentUser } from "@/lib/session";
 
 function amountFrom(form: FormData): number {
   const cents = parseEurToCents(String(form.get("amount") ?? ""));
@@ -30,6 +31,7 @@ export async function requestOwnAdvance(_: ActionState, form: FormData): Promise
     const amountCents = amountFrom(form);
     const note = String(form.get("note") ?? "").trim() || null;
     await withActor(me.id, (tx) => tx.insert(advanceRequests).values({ employeeId: emp.id, amountCents, note, createdBy: me.id }));
+    notifyAdvanceRequested(emp.id, amountCents, me.id);
     revalidatePath("/me");
     revalidatePath("/advances");
     return (await getTranslations("advances"))("sent");
@@ -47,9 +49,15 @@ export async function requestAdvanceFor(_: ActionState, form: FormData): Promise
     const amountCents = amountFrom(form);
     const note = String(form.get("note") ?? "").trim() || null;
     await withActor(me.id, (tx) => tx.insert(advanceRequests).values({ employeeId, amountCents, note, createdBy: me.id }));
+    notifyAdvanceRequested(employeeId, amountCents, me.id);
     revalidatePath("/advances");
     return (await getTranslations("advances"))("createdFor", { name: `${emp.firstName} ${emp.lastName}` });
   });
+}
+
+/** Accounting decides for every department; managers for their own. */
+async function canDecideFor(me: CurrentUser, departmentId: string) {
+  return me.role === "accountant" || (await canManageDepartment(me, departmentId));
 }
 
 const decisionSchema = z.object({
@@ -67,17 +75,45 @@ export async function decideAdvance(raw: unknown): Promise<{ error?: string; ok?
     const req = await db.query.advanceRequests.findFirst({ where: eq(advanceRequests.id, requestId) });
     if (!req) throw new AppError("requestNotFound");
     const emp = await db.query.employees.findFirst({ where: eq(employees.id, req.employeeId) });
-    if (!emp || !(await canManageDepartment(me, emp.departmentId))) throw new AppError("cannotDecide");
+    if (!emp || !(await canDecideFor(me, emp.departmentId))) throw new AppError("cannotDecide");
     if (emp.userId === me.id) throw new AppError("ownAdvance");
     await withActor(me.id, async (tx) => {
       const done = await tx.query.advanceDecisions.findFirst({ where: eq(advanceDecisions.requestId, requestId) });
       if (done) throw new AppError("alreadyDecided");
       await tx.insert(advanceDecisions).values({ requestId, decision, note: note || null, createdBy: me.id });
     });
+    notifyAdvanceOutcome(req.employeeId, req.amountCents, decision, note);
     revalidatePath("/advances");
     revalidatePath("/me");
     return { ok: decision };
   } catch (e) {
     return { error: await errorMessage(e) };
+  }
+}
+
+/** Accounting (or admin) records that an approved advance was handed out. */
+export async function markAdvanceGiven(requestId: string): Promise<{ error?: string; ok?: string }> {
+  try {
+    z.uuid().parse(requestId);
+    const me = await getCurrentUser();
+    if (!me || (me.role !== "accountant" && me.role !== "admin")) throw new AppError("notAllowed");
+    const req = await db.query.advanceRequests.findFirst({ where: eq(advanceRequests.id, requestId) });
+    if (!req) throw new AppError("requestNotFound");
+    const emp = await db.query.employees.findFirst({ where: eq(employees.id, req.employeeId) });
+    if (emp?.userId === me.id) throw new AppError("ownAdvance");
+    await withActor(me.id, async (tx) => {
+      const decision = await tx.query.advanceDecisions.findFirst({ where: eq(advanceDecisions.requestId, requestId) });
+      if (decision?.decision !== "approved") throw new AppError("advanceNotApproved");
+      const paid = await tx.query.advancePayments.findFirst({ where: eq(advancePayments.requestId, requestId) });
+      if (paid) throw new AppError("advanceAlreadyGiven");
+      await tx.insert(advancePayments).values({ requestId, createdBy: me.id });
+    });
+    notifyAdvanceOutcome(req.employeeId, req.amountCents, "given");
+    revalidatePath("/advances");
+    revalidatePath("/me");
+    return { ok: "given" };
+  } catch (e) {
+    const err = e as { cause?: { code?: string } };
+    return { error: await errorMessage(err.cause?.code === "23505" ? new AppError("advanceAlreadyGiven") : e) };
   }
 }
